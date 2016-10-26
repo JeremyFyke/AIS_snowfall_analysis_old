@@ -1,11 +1,9 @@
-def generate_region_mask():
+def generate_region_mask(AtmSrcDir):
 
     import numpy as np
     import netCDF4 as nc
 
     print 'Generating region masks...'
-
-    AtmSrcDir="/glade/scratch/hailong/archive/composite_ICE_wtag_mean/atm/hist/"
 
     #Define vapor tagging regions.  Fields in each array are:
     #1) short name

@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, Button, RadioButtons
 from generate_region_mask import generate_region_mask
 
-lat,lon,latv,lonv,LandFrac,RegionNames,RegionMask=generate_region_mask()
+lat,lon,latv,lonv,LandFrac,RegionNames,RegionMask=generate_region_mask(AtmSrcDir)
 
 #Make a hover plot in plotly, over AIS, that shows breakdown of contributions to point
 #Color plot by region of most significance
