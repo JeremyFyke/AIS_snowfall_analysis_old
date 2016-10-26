@@ -70,7 +70,8 @@ class viewer_2d(object):
 	    print 'Lat/lon: ',plat,'/',plon
 	    print 'Plotting Rignot basin #: '+str(self.Mask[j,i])
 	    
-	    MaskValue=self.Mask[j,i]-1 #reduce by one since this is used to index into the Contributions array
+	    MaskValue=np.round(self.Mask[j,i]) 
+	    MaskValue=MaskValue.astype(int)-1#convert to integer and reduce by one since this is used to index into the Contributions array
 
             if MaskValue < 0.:
 	        print 'No region defined here, not replotting.'
@@ -105,8 +106,10 @@ if __name__=='__main__':
     RegionLongName.append("Residual")
 
     f=nc.Dataset(MaskFile)
-    IMBIEBasinMask=f.variables["IMBIEbasins"][:,:].astype(int)
-    nIMBIEBasins=np.amax(IMBIEBasinMask)-1 #minus one region, to exclude ocean (see below)  
+    IMBIEBasinMask=f.variables["IMBIEbasins"][:,:]
+    nIMBIEBasins=np.amax(IMBIEBasinMask) #minus one region, to exclude ocean (see below)
+    nIMBIEBasins=nIMBIEBasins.astype(int)
+    print nIMBIEBasins
     f.close()
     
     #Initialize total and contribution fields
@@ -124,7 +127,7 @@ if __name__=='__main__':
             vname=Variable+"_"+Regions[k]
 	    TMP_FIELD[:,:,k]=np.squeeze(f.variables[vname][:,:,:]) #Load tagged fields
 	f.close()
-	for b in np.arange(0,nIMBIEBasins):
+	for b in np.arange(0,nIMBIEBasins): #this loops from 0-17, so gets regions 1-18
 	    nBasinMask=b+1
 	    iMask=np.where(IMBIEBasinMask==nBasinMask)
 	    FIELD_TOT[b,m]=np.sum(TMP_FIELD_TOT[iMask]*Area[iMask]*LandFrac[iMask])/kgpS2GtpYr
