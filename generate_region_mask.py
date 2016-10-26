@@ -1,4 +1,4 @@
-def generate_region_mask(AtmSrcDir):
+def generate_region_mask():
 
     import numpy as np
     import netCDF4 as nc
@@ -40,17 +40,21 @@ def generate_region_mask(AtmSrcDir):
        ("WLR","Wilkes Land"),
        ]
 
-    #Grab landmask from arbitrary file
-    f=nc.Dataset(AtmSrcDir+"composite_ICE_wtag_mean.cam.h0.0001-01.nc")
+    #Grab landmask/latlon from arbitrary files
+    f=nc.Dataset("/glade/scratch/hailong/archive/composite_ICE_wtag_mean/atm/hist/composite_ICE_wtag_mean.cam.h0.0001-01.nc")
     LandFrac=np.squeeze(f.variables["LANDFRAC"][:,:])
     f.close()
 
-    #Build lat/lon grids
-    f=nc.Dataset(AtmSrcDir+"composite_ICE_wtag_mean.cam.h1.0011-12-07-00000.nc")
+    f=nc.Dataset("/glade/scratch/hailong/archive/composite_ICE_wtag_mean/atm/hist/composite_ICE_wtag_mean.cam.h1.0011-12-07-00000.nc")
     latv=f.variables["lat"][:]
     lonv=f.variables["lon"][:]
     lat=np.transpose(np.tile(latv,(len(lonv),1)))
     lon=np.tile(lonv,(len(latv),1))
+    f.close()
+
+    #Grab area from arbitrary file (in CLM, since area isn't saved to history output)
+    f=nc.Dataset("/glade/p/cesm/cseg/inputdata/lnd/clm2/griddata/griddata_0.9x1.25_070212.nc")
+    Area=np.squeeze(f.variables["AREA"][:,:])*1.e6 #convert to square meters
     f.close()
 
     RegionMask=np.zeros(( np.shape(lat)[0], np.shape(lat)[1], len(RegionNames) ))
@@ -182,4 +186,4 @@ def generate_region_mask(AtmSrcDir):
         		    if lon[i,j] > 90. and lon[i,j] <= 120.:
         		      RegionMask[i,j,k] = 1.-LandFrac[i,j]
 			      
-    return lat,lon,latv,lonv,LandFrac,RegionNames,RegionMask
+    return lat,lon,latv,lonv,Area,LandFrac,RegionNames,RegionMask

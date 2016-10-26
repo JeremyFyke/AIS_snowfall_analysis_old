@@ -1,6 +1,6 @@
 import numpy as np
 from scipy import spatial
-from netCDF4 import MFDataset
+import netCDF4 as nc
 from mpl_toolkits.basemap import Basemap
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
@@ -11,13 +11,14 @@ from generate_region_mask import generate_region_mask
 Variable="PRECT"
 Regions=["LND","SOCN","SIO","SPO","SAO"]
 CaseName="composite_ICE_wtag_mean"
-AtmSrcDir="/glade/scratch/hailong/archive/"+CaseName+"/atm/hist/"
+AtmSrcDir="/glade/scratch/hailong/amwg/climo/composite_ICE_wtag_mean/"
+MaskFile="/glade/u/home/jfyke/liwg/AIS_snowfall_analysis/fyke_analysis/data/ANT_Basins_IMBIE2_v1.6_CESM.nc"
 ###User Input Ends###
 
 class viewer_2d(object):
-    def __init__(self,Total,Contributions,latv,lonv,lat,lon,RegionLongName,Variable,Month):
+    def __init__(self,Mask,Contributions,latv,lonv,lat,lon,RegionLongName,Variable,Month):
 
-        self.Total=Total
+        self.Mask=Mask
         self.Contributions=Contributions
 	self.lonv=lonv+0.625
 	self.latv=latv
@@ -28,13 +29,14 @@ class viewer_2d(object):
 	self.Month=Month
 
         self.fig=plt.figure()
-        self.fig.subplots_adjust(0.05,0.05,0.98,0.98,0.1)
+	self.fig.set_size_inches(8,4)
+        self.fig.subplots_adjust(0.05,0.05,0.98,0.98,0.2)
 	
         #Build main plot	
         self.overview=plt.subplot2grid((8,4),(0,0),rowspan=7,colspan=2) #main plot
         self.m = Basemap(projection='spstere',boundinglat=-60,lon_0=0,resolution='l',ax=self.overview)
 	self.x, self.y = self.m(*np.meshgrid(self.lonv,self.latv))
-	self.cs=self.m.pcolor(self.x,self.y,self.Total,vmin=0,vmax=2.5e-8)
+	self.cs=self.m.pcolor(self.x,self.y,self.Mask)
         #self.cb=self.m.colorbar(self.cs,"bottom")
         self.m.drawcoastlines()
 	# draw parallels.
@@ -64,27 +66,34 @@ class viewer_2d(object):
 	    
 	    i=np.argmin(np.absolute(self.lonv-plon))
 	    j=np.argmin(np.absolute(self.latv-plat))
-            print 'Lat/lon: ',plat,'/',plon
-
-	    self.interactive_subplot.clear()
-	    x=np.arange(0,12) #vector of values representing months
-	    y=np.transpose(np.squeeze(self.Contributions[j,i,:,:]))
-	    stack_coll =self.interactive_subplot.stackplot(x,y)
-	    proxy_rects = [Rectangle((0, 0), 1, 1, fc=pc.get_facecolor()[0]) for pc in stack_coll]
-	    self.interactive_subplot.legend(proxy_rects,RegionLongName,bbox_to_anchor=(0.9,-.25))
-	    self.interactive_subplot.get_yaxis().set_visible(False)
-
-	    #self.interactive_subplot.legend(r,self.RegionLongName,bbox_to_anchor=(1,0))
-	    self.interactive_subplot.axis('tight')
-	    #self.interactive_subplot.legend(patches,self.RegionLongName,bbox_to_anchor=(1,0))
-	    self.interactive_subplot.set(xlabel=self.Variable+" contributions by climo. month ")
+            print '*********'
+	    print 'Lat/lon: ',plat,'/',plon
+	    print 'Plotting Rignot basin #: '+str(self.Mask[j,i])
 	    
-	    plt.draw()
+	    MaskValue=self.Mask[j,i]-1 #reduce by one since this is used to index into the Contributions array
+
+            if MaskValue < 0.:
+	        print 'No region defined here, not replotting.'
+	    else: 
+		self.interactive_subplot.clear()
+		x=np.arange(0,12) #vector of values representing months
+		y=np.transpose(np.squeeze(self.Contributions[MaskValue,:,:]))
+		stack_coll =self.interactive_subplot.stackplot(x,y)
+		proxy_rects = [Rectangle((0, 0), 1, 1, fc=pc.get_facecolor()[0]) for pc in stack_coll]
+		self.interactive_subplot.legend(proxy_rects,RegionLongName,bbox_to_anchor=(0.9,-.25))
+		#self.interactive_subplot.get_yaxis().set_visible(False)
+		self.interactive_subplot.axis('tight')
+		self.interactive_subplot.set(xlabel=self.Variable+" contributions by climo. month ",
+		                             ylabel='Gt/yr')
+
+		plt.draw()
 
 if __name__=='__main__':
     
     #Get lon/lat grids
-    lat,lon,latv,lonv,LandFrac,AllRegionNames,AllRegionMask=generate_region_mask(AtmSrcDir)    
+    lat,lon,latv,lonv,Area,LandFrac,AllRegionNames,AllRegionMask=generate_region_mask()    
+    
+    kgpS2GtpYr=1.e12/1000./3.154e7
     
     #Get long names for regions of interest (from list above)
     RegionLongName=[]
@@ -94,30 +103,46 @@ if __name__=='__main__':
 	         RegionLongName.append(LongName)
     Regions.append("Res")
     RegionLongName.append("Residual")
+
+    f=nc.Dataset(MaskFile)
+    IMBIEBasinMask=f.variables["IMBIEbasins"][:,:].astype(int)
+    nIMBIEBasins=np.amax(IMBIEBasinMask)-1 #minus one region, to exclude ocean (see below)  
+    f.close()
     
     #Initialize total and contribution fields
-    FIELD_TOT=np.zeros(( np.shape(lat)[0], np.shape(lat)[1], 12 )) 
-    FIELD=np.zeros(( np.shape(lat)[0], np.shape(lat)[1], 12, len(Regions) )) 
-    
+    FIELD_TOT=np.zeros(( nIMBIEBasins, 12 )) 
+    FIELD=np.zeros(( nIMBIEBasins, 12, len(Regions) )) 
+
+    print 'Loading climo fields...'
     
     for m in np.arange(0,12):
 	Month='%02d'%(m+1)
-	print 'Building climatology for month: '+Month+'...'
-	f=MFDataset(AtmSrcDir+CaseName+".cam.h0.*"+Month+".nc")
-	FIELD_TOT[:,:,m]=np.mean(np.squeeze(f.variables[Variable+"_"+"H2O"][:,:,:]),0) #Load total field
+	f=nc.Dataset(AtmSrcDir+CaseName+"_"+Month+"_climo.nc")
+	TMP_FIELD_TOT=np.squeeze(f.variables[Variable+"_"+"H2O"][:,:,:]) #Load total field
+	TMP_FIELD=np.zeros(( np.shape(lat)[0], np.shape(lat)[1], len(Regions) )) 
 	for k in np.arange(0,len(Regions)-1): #Note: omit residual field, which is calculated next
             vname=Variable+"_"+Regions[k]
-	    FIELD[:,:,m,k]=np.mean(np.squeeze(f.variables[vname][:,:,:]),0) #Load tagged field
+	    TMP_FIELD[:,:,k]=np.squeeze(f.variables[vname][:,:,:]) #Load tagged fields
 	f.close()
+	for b in np.arange(0,nIMBIEBasins):
+	    nBasinMask=b+1
+	    iMask=np.where(IMBIEBasinMask==nBasinMask)
+	    FIELD_TOT[b,m]=np.sum(TMP_FIELD_TOT[iMask]*Area[iMask]*LandFrac[iMask])/kgpS2GtpYr
+	    for k in np.arange(0,len(Regions)-1):
+	        TMP=np.squeeze(TMP_FIELD[:,:,k])
+	        FIELD[b,m,k]=np.sum(TMP[iMask]*Area[iMask]*LandFrac[iMask])/kgpS2GtpYr
+	
 	#Calculate residual by adding up all explicitly-included tagged fields, and subtracting this sum from total value
-	FIELD[:,:,m,-1]=FIELD_TOT[:,:,m]-np.sum(np.squeeze(FIELD[:,:,m,0:-2]),axis=2)
+	FIELD[:,m,-1]=FIELD_TOT[:,m]-np.sum(np.squeeze(FIELD[:,m,0:-2]),axis=1)
 
         ## Normalize the contributions by the total value
 	#for k in np.arange(0,len(Regions)):
         #    FIELD[:,:,m,k]=FIELD[:,:,m,k]/FIELD_TOT[:,:,m]
+
     
     #Call viewer class to make plot.
-    print 'Constructing viewer...'    
-    fig_v=viewer_2d(np.mean(FIELD_TOT,2),FIELD,latv,lonv,lat,lon,RegionLongName,Variable,Month)
+    print 'Constructing viewer...' 
+      
+    fig_v=viewer_2d(IMBIEBasinMask,FIELD,latv,lonv,lat,lon,RegionLongName,Variable,Month)
 
     plt.show()
