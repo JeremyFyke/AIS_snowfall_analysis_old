@@ -183,5 +183,5 @@ def generate_region_mask():
         		  if lat[i,j] > -68. and lat[i,j] <= -55.: 
         		    if lon[i,j] > 90. and lon[i,j] <= 120.:
         		      RegionMask[i,j,k] = 1.-LandFrac[i,j]
-    print 'Generating region masks complete.'
+			      
     return lat,lon,latv,lonv,LandFrac,RegionNames,RegionMask
