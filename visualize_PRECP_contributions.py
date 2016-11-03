@@ -10,16 +10,18 @@ from generate_region_mask import generate_region_mask
 ###User Input Here###
 Variable="PRECT"
 Regions=["LND","SOCN","SIO","SPO","SAO"]
-CaseName="composite_ICE_wtag_mean"
-AtmSrcDir="/glade/scratch/hailong/amwg/climo/composite_ICE_wtag_mean/"
-MaskFile="/glade/u/home/jfyke/liwg/AIS_snowfall_analysis/fyke_analysis/data/ANT_Basins_IMBIE2_v1.6_CESM.nc"
+CaseNamePrefix="composite_ICE_wtag_"
+AtmSrcDirPrefix="/glade/scratch/hailong/amwg/climo/composite_ICE_wtag_"
+BasinFile="/glade/u/home/jfyke/liwg/AIS_snowfall_analysis/fyke_analysis/data/AIS_Full_basins_Zwally_CESMgrid.nc"
+BasinVariable="Zwallybasins"
 ###User Input Ends###
 
 class viewer_2d(object):
-    def __init__(self,Mask,Contributions,latv,lonv,lat,lon,RegionLongName,Variable,Month):
+    def __init__(self,Mask,Contributions,dContributions_normalized,latv,lonv,lat,lon,RegionLongName,Variable,Month):
 
         self.Mask=Mask
         self.Contributions=Contributions
+	self.dContributions_normalized=dContributions_normalized
 	self.lonv=lonv+0.625
 	self.latv=latv
 	self.lon=lon
@@ -28,12 +30,12 @@ class viewer_2d(object):
 	self.Variable=Variable
 	self.Month=Month
 
-        self.fig=plt.figure()
-	self.fig.set_size_inches(8,4)
+        self.fig=plt.figure(figsize=(10,10))
+	self.fig.set_size_inches(16,8)
         self.fig.subplots_adjust(0.05,0.05,0.98,0.98,0.2)
 	
         #Build main plot	
-        self.overview=plt.subplot2grid((8,4),(0,0),rowspan=7,colspan=2) #main plot
+        self.overview=plt.subplot2grid((15,4),(7,0),rowspan=5,colspan=2) #main plot
         self.m = Basemap(projection='spstere',boundinglat=-60,lon_0=0,resolution='l',ax=self.overview)
 	self.x, self.y = self.m(*np.meshgrid(self.lonv,self.latv))
 	self.cs=self.m.pcolor(self.x,self.y,self.Mask)
@@ -46,7 +48,8 @@ class viewer_2d(object):
         self.m.drawmeridians(self.meridians,labels=[0,0,0,1],fontsize=10)	
 
         #Initialize axis for evolving plot      
-        self.interactive_subplot=plt.subplot2grid((8,4),(0,2),rowspan=4,colspan=2) #evolving plot
+        self.interactive_subplot1=plt.subplot2grid((15,4),(2,2),rowspan=5,colspan=2) #evolving plot 1
+        self.interactive_subplot2=plt.subplot2grid((15,4),(8,2),rowspan=5,colspan=2) #evolving plot 1	
 
         #Initialize interactivity of evolving plot via an active cursor over the overview plot
         cursor=Cursor(self.overview, useblit=True, color='black', linewidth=1 )
@@ -76,17 +79,37 @@ class viewer_2d(object):
             if MaskValue < 0.:
 	        print 'No region defined here, not replotting.'
 	    else: 
-		self.interactive_subplot.clear()
+	        #Replot contributions plot for mean-SIC case, for clicked basin
+		self.interactive_subplot1.clear()
 		x=np.arange(0,12) #vector of values representing months
-		y=np.transpose(np.squeeze(self.Contributions[MaskValue,:,:]))
-		stack_coll =self.interactive_subplot.stackplot(x,y)
+		y=np.transpose(np.squeeze(self.Contributions[MaskValue,:,:,1]))
+		stack_coll =self.interactive_subplot1.stackplot(x,y)
 		proxy_rects = [Rectangle((0, 0), 1, 1, fc=pc.get_facecolor()[0]) for pc in stack_coll]
-		self.interactive_subplot.legend(proxy_rects,RegionLongName,bbox_to_anchor=(0.9,-.25))
-		#self.interactive_subplot.get_yaxis().set_visible(False)
-		self.interactive_subplot.axis('tight')
-		self.interactive_subplot.set(xlabel=self.Variable+" contributions by climo. month ",
-		                             ylabel='Gt/yr')
-
+		self.interactive_subplot1.legend(proxy_rects,RegionLongName,bbox_to_anchor=(-0.25,.7))
+		
+		##Attempt to overlay low/mean/high SIC total PRECPT time series on stacked plot...
+		#y=np.sum(np.squeeze(self.Contributions[MaskValue,:,:,1]),axis=1)
+		#self.interactive_subplot1.plot(x,y,color='black',linewidth=6)
+		#y=np.transpose(np.sum(np.squeeze(self.Contributions[MaskValue,:,:,0]),axis=1))
+		#self.interactive_subplot1.plot(x,y,color='grey',linewidth=3)		
+		#y=np.transpose(np.sum(np.squeeze(self.Contributions[MaskValue,:,:,2]),axis=1))
+		#self.interactive_subplot1.plot(x,y,color='grey',linewidth=3)			
+		
+		self.interactive_subplot1.axis('tight')
+		self.interactive_subplot1.set(xlabel="Month",
+		                             ylabel='Gt/yr flux')
+					     
+		#Replot fractional change in contributions plot, for clicked basin
+		self.interactive_subplot2.clear()		     
+		x=np.arange(0,12) #vector of values representing months
+		y=np.squeeze(self.dContributions_normalized[MaskValue,:,:])
+		print np.shape(x)
+		print np.shape(y)			     
+                self.interactive_subplot2.plot(x,y)
+		self.interactive_subplot2.axis('tight')
+		self.interactive_subplot2.set(xlabel="Month",
+		                             ylabel=self.Variable+' change in flux (change in %, high-low SIC)')
+		
 		plt.draw()
 
 if __name__=='__main__':
@@ -94,7 +117,10 @@ if __name__=='__main__':
     #Get lon/lat grids
     lat,lon,latv,lonv,Area,LandFrac,AllRegionNames,AllRegionMask=generate_region_mask()    
     
-    kgpS2GtpYr=1.e12/1000./3.154e7
+    SecPYr=3.154e7
+    KgPM3=1000.
+    MmPM=1000.
+    GtPKg=1.e12
     
     #Get long names for regions of interest (from list above)
     RegionLongName=[]
@@ -105,47 +131,90 @@ if __name__=='__main__':
     Regions.append("Res")
     RegionLongName.append("Residual")
 
-    f=nc.Dataset(MaskFile)
-    IMBIEBasinMask=f.variables["IMBIEbasins"][:,:]
-    nIMBIEBasins=np.amax(IMBIEBasinMask) #minus one region, to exclude ocean (see below)
+    f=nc.Dataset(BasinFile)
+    IMBIEBasinMask=f.variables[BasinVariable][:,:]
+    IMBIEBasinMask=np.round(IMBIEBasinMask)
+    
+    nIMBIEBasins=np.amax(IMBIEBasinMask)
     nIMBIEBasins=nIMBIEBasins.astype(int)
-    print nIMBIEBasins
     f.close()
     
     #Initialize total and contribution fields
-    FIELD_TOT=np.zeros(( nIMBIEBasins, 12 )) 
-    FIELD=np.zeros(( nIMBIEBasins, 12, len(Regions) )) 
-
-    print 'Loading climo fields...'
     
-    for m in np.arange(0,12):
-	Month='%02d'%(m+1)
-	f=nc.Dataset(AtmSrcDir+CaseName+"_"+Month+"_climo.nc")
-	TMP_FIELD_TOT=np.squeeze(f.variables[Variable+"_"+"H2O"][:,:,:]) #Load total field
-	TMP_FIELD=np.zeros(( np.shape(lat)[0], np.shape(lat)[1], len(Regions) )) 
-	for k in np.arange(0,len(Regions)-1): #Note: omit residual field, which is calculated next
-            vname=Variable+"_"+Regions[k]
-	    TMP_FIELD[:,:,k]=np.squeeze(f.variables[vname][:,:,:]) #Load tagged fields
-	f.close()
-	for b in np.arange(0,nIMBIEBasins): #this loops from 0-17, so gets regions 1-18
-	    nBasinMask=b+1
-	    iMask=np.where(IMBIEBasinMask==nBasinMask)
-	    FIELD_TOT[b,m]=np.sum(TMP_FIELD_TOT[iMask]*Area[iMask]*LandFrac[iMask])/kgpS2GtpYr
-	    for k in np.arange(0,len(Regions)-1):
-	        TMP=np.squeeze(TMP_FIELD[:,:,k])
-	        FIELD[b,m,k]=np.sum(TMP[iMask]*Area[iMask]*LandFrac[iMask])/kgpS2GtpYr
+    FIELD=np.zeros(( np.size(Area,0),np.size(Area,1), 12, len(Regions), 3 ))
+    FIELD_TOT=np.zeros(( np.size(Area,0),np.size(Area,1), 12, 3 )) 
+    FIELD_normalized=np.zeros(( nIMBIEBasins, 12, len(Regions), 3 ))
+    
+    BASIN_FIELD=np.zeros(( nIMBIEBasins, 12, len(Regions), 3 ))
+    BASIN_FIELD_TOT=np.zeros(( nIMBIEBasins, 12, 3 ))    
+    BASIN_FIELD_normalized=np.zeros(( nIMBIEBasins, 12, len(Regions), 3 ))    
+    
+    #TOT=np.zeros(( 12, 3 )) 
+
+    MaskedArea=Area*LandFrac
+    
+    for nSIC,SIC in enumerate(["low","mean","high"]):
+    
+        print 'Processing '+SIC+' simulation...'
 	
-	#Calculate residual by adding up all explicitly-included tagged fields, and subtracting this sum from total value
-	FIELD[:,m,-1]=FIELD_TOT[:,m]-np.sum(np.squeeze(FIELD[:,m,0:-2]),axis=1)
+	TMP_FIELD_TOT_ANN=np.zeros(np.shape(Area))
+	
+	#Load original data
+	for nMonth in np.arange(0,12):
+	    Month='%02d'%(nMonth+1)
+	    CaseName=CaseNamePrefix+SIC
+	    AtmSrcDir=AtmSrcDirPrefix+SIC
+	    f=nc.Dataset(AtmSrcDir+'/'+CaseName+"_"+Month+"_climo.nc")
+	    FIELD_TOT[:,:,nMonth,nSIC]=np.squeeze(f.variables[Variable+"_"+"H2O"][:,:,:])*KgPM3*SecPYr/GtPKg #Load total monthly mean flux field
+            for nTag in np.arange(0,len(Regions)-1): #Note: omit residual field, which is calculated next
+        	vname=Variable+"_"+Regions[nTag]
+		FIELD[:,:,nMonth,nTag,nSIC]=np.squeeze(f.variables[vname][:,:,:])*KgPM3*SecPYr/GtPKg #Load tagged fields
+	    f.close()
+		
+	    #Calculate residual
+            FIELD[:,:,nMonth,-1,nSIC]=FIELD_TOT[:,:,nMonth,nSIC]-np.sum(FIELD[:,:,nMonth,:,nSIC],axis=2)
+            
+            for nBasin in np.arange(0,nIMBIEBasins):
+	        iMask=np.where(IMBIEBasinMask==(nBasin+1))
+		TMP=np.squeeze(FIELD_TOT[:,:,nMonth,nSIC])
+	        BASIN_FIELD_TOT[nBasin,nMonth,nSIC]=np.sum(TMP[iMask]*MaskedArea[iMask])
+		for nTag in np.arange(0,len(Regions)): #calculate monthly integrated flux into each basin, from each tagged source region
+		    TMP=np.squeeze(FIELD[:,:,nMonth,nTag,nSIC])
+		    BASIN_FIELD[nBasin,nMonth,nTag,nSIC]=np.sum(TMP[iMask]*MaskedArea[iMask])
+		    BASIN_FIELD_normalized[nBasin,nMonth,nTag,nSIC]=BASIN_FIELD[nBasin,nMonth,nTag,nSIC]/BASIN_FIELD_TOT[nBasin,nMonth,nSIC]		
+	    
+#             for i in np.arange(0,np.size(Area,0)):
+#         	for j in np.arange(0,np.size(Area,1)):	    
+# 
+#                     if IMBIEBasinMask[i,j]>0:
+# 		        TOT[nMonth,nSIC]=TOT[nMonth,nSIC]+FIELD_TOT[i,j,nMonth,nSIC]*MaskedArea[i,j]
+# 			FoundInsideLoop=False
+# 			for nBasin in np.arange(0,nIMBIEBasins):
+# 			    if IMBIEBasinMask[i,j] > nBasin.astype(float)+0.5:
+# 			        if IMBIEBasinMask[i,j] < nBasin.astype(float)+1.5:
+# 				    FoundInsideLoop=True
+# 			            BASIN_FIELD_TOT[nBasin,nMonth,nSIC]=BASIN_FIELD_TOT[nBasin,nMonth,nSIC]+FIELD_TOT[i,j,nMonth,nSIC]*MaskedArea[i,j]
+# 	        		    for nTag in np.arange(0,len(Regions)): #calculate monthly integrated flux into each basin, from each tagged source region
+# 					BASIN_FIELD[nBasin,nMonth,nTag,nSIC]=BASIN_FIELD[nBasin,nMonth,nTag,nSIC]+FIELD[i,j,nMonth,nTag,nSIC]*MaskedArea[i,j]
+# 					BASIN_FIELD_normalized[nBasin,nMonth,nTag,nSIC]=BASIN_FIELD[nBasin,nMonth,nTag,nSIC]/BASIN_FIELD_TOT[nBasin,nMonth,nSIC]
+#                         if FoundInsideLoop==False:
+# 			    print IMBIEBasinMask[i,j]
+		     
+	#TMP=np.mean(np.squeeze(FIELD_TOT[:,:,:,nSIC]),axis=2) #To monthly means, for all locations
+	#n=np.sum(TMP[IMBIEBasinMask>0])
+	#print n
+        #print 'total SMB for '+SIC+'-SIC simulation based on non-basined approach='+str(n)
 
-        ## Normalize the contributions by the total value
-	#for k in np.arange(0,len(Regions)):
-        #    FIELD[:,:,m,k]=FIELD[:,:,m,k]/FIELD_TOT[:,:,m]
+        TMP_FIELD_TOT=np.mean(BASIN_FIELD_TOT[:,:,nSIC],axis=1)
+	n=np.sum(TMP_FIELD_TOT)
+        print 'total SMB for '+SIC+' simulation='+str(n)
+	
+    #Plot percent change in fractional contribution, for each basin, for each month, for high minus low SIC
 
-    
+    dFIELD_normalized=(BASIN_FIELD_normalized[:,:,:,2]-BASIN_FIELD_normalized[:,:,:,0])
+	
     #Call viewer class to make plot.
     print 'Constructing viewer...' 
-      
-    fig_v=viewer_2d(IMBIEBasinMask,FIELD,latv,lonv,lat,lon,RegionLongName,Variable,Month)
+    fig_v=viewer_2d(IMBIEBasinMask,BASIN_FIELD,dFIELD_normalized,latv,lonv,lat,lon,RegionLongName,Variable,Month)
 
     plt.show()
