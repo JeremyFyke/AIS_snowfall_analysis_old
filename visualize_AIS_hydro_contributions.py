@@ -1,6 +1,4 @@
 import numpy as np
-from scipy import spatial
-from sklearn.neighbors import NearestNeighbors
 import netCDF4 as nc
 from mpl_toolkits.basemap import Basemap
 import matplotlib.pyplot as plt
@@ -72,7 +70,7 @@ class viewer_2d(object):
 	    j=np.argmin(np.absolute(self.latv-plat))
             print '*********'
 	    print 'Lat/lon: ',plat,'/',plon
-	    print 'Plotting Zwally basin #: '+str(self.Mask[j,i])
+	    print 'Plotting basin #: '+str(self.Mask[j,i])
 	    
 	    MaskValue=np.round(self.Mask[j,i]) 
 	    MaskValue=MaskValue.astype(int)-1#convert to integer and reduce by one since this is used to index into the Contributions array
@@ -86,15 +84,7 @@ class viewer_2d(object):
 		y=np.transpose(np.squeeze(self.Contributions[MaskValue,:,:,1]))
 		stack_coll =self.interactive_subplot1.stackplot(x,y)
 		proxy_rects = [Rectangle((0, 0), 1, 1, fc=pc.get_facecolor()[0]) for pc in stack_coll]
-		self.interactive_subplot1.legend(proxy_rects,RegionLongName,bbox_to_anchor=(-0.25,.7))
-		
-		##Attempt to overlay low/mean/high SIC total PRECPT time series on stacked plot...
-		#y=np.sum(np.squeeze(self.Contributions[MaskValue,:,:,1]),axis=1)
-		#self.interactive_subplot1.plot(x,y,color='black',linewidth=6)
-		#y=np.transpose(np.sum(np.squeeze(self.Contributions[MaskValue,:,:,0]),axis=1))
-		#self.interactive_subplot1.plot(x,y,color='grey',linewidth=3)		
-		#y=np.transpose(np.sum(np.squeeze(self.Contributions[MaskValue,:,:,2]),axis=1))
-		#self.interactive_subplot1.plot(x,y,color='grey',linewidth=3)			
+		self.interactive_subplot1.legend(proxy_rects,RegionLongName,bbox_to_anchor=(-0.25,.7))	
 		
 		self.interactive_subplot1.axis('tight')
 		self.interactive_subplot1.set(xlabel="Month",
@@ -138,7 +128,7 @@ if __name__=='__main__':
     f.close()
       
     def get_shortest_in(needleLat,needleLon, haystackLat, haystackLon):
-	"""needle is a single (lat,long) tuple.
+	"""
             haystack is a numpy array to find the point in
             that has the shortest distance to needle
 	"""
@@ -175,14 +165,10 @@ if __name__=='__main__':
         for nlon in np.arange(0,np.size(Area,1)):
 	    if CoastMask[nlat,nlon]==1:
 	        ProximityToCoast=get_shortest_in( lat[nlat,nlon],lon[nlat,nlon] , CoastLat,CoastLon  )
-		nbin=np.round(ProximityToCoast/BinInterval)
+		nbin=np.ceil(ProximityToCoast/BinInterval)
 		ContinentalMask[nlat,nlon]=nbin
     nContinentalBasins=np.amax(ContinentalMask)
-    print nContinentalBasins
     nContinentalBasins=nContinentalBasins.astype(int)
-    #plt.pcolor(ContinentalBin)
-    #plt.colorbar()
-    #plt.show()
     
     #Initialize total and contribution fields
     
@@ -221,38 +207,13 @@ if __name__=='__main__':
             
 	    #Calculate basin-specific values
             for nBasin in np.arange(0,nContinentalBasins):
-	        print '***'
-		print 'nBasin='+str(nBasin)
 	        iMask=np.where(ContinentalMask==(nBasin+1))
 		TMP=np.squeeze(FIELD_TOT[:,:,nMonth,nSIC])
 	        BASIN_FIELD_TOT[nBasin,nMonth,nSIC]=np.sum(TMP[iMask]*MaskedArea[iMask])
 		for nTag in np.arange(0,len(Regions)): #calculate monthly integrated flux into each basin, from each tagged source region
 		    TMP=np.squeeze(FIELD[:,:,nMonth,nTag,nSIC])
 		    BASIN_FIELD[nBasin,nMonth,nTag,nSIC]=np.sum(TMP[iMask]*MaskedArea[iMask])
-		    print BASIN_FIELD[nBasin,nMonth,nTag,nSIC]
 		    BASIN_FIELD_normalized[nBasin,nMonth,nTag,nSIC]=BASIN_FIELD[nBasin,nMonth,nTag,nSIC]/BASIN_FIELD_TOT[nBasin,nMonth,nSIC]		
-	    
-#             for i in np.arange(0,np.size(Area,0)):
-#         	for j in np.arange(0,np.size(Area,1)):	    
-# 
-#                     if IMBIEBasinMask[i,j]>0:
-# 		        TOT[nMonth,nSIC]=TOT[nMonth,nSIC]+FIELD_TOT[i,j,nMonth,nSIC]*MaskedArea[i,j]
-# 			FoundInsideLoop=False
-# 			for nBasin in np.arange(0,nIMBIEBasins):
-# 			    if IMBIEBasinMask[i,j] > nBasin.astype(float)+0.5:
-# 			        if IMBIEBasinMask[i,j] < nBasin.astype(float)+1.5:
-# 				    FoundInsideLoop=True
-# 			            BASIN_FIELD_TOT[nBasin,nMonth,nSIC]=BASIN_FIELD_TOT[nBasin,nMonth,nSIC]+FIELD_TOT[i,j,nMonth,nSIC]*MaskedArea[i,j]
-# 	        		    for nTag in np.arange(0,len(Regions)): #calculate monthly integrated flux into each basin, from each tagged source region
-# 					BASIN_FIELD[nBasin,nMonth,nTag,nSIC]=BASIN_FIELD[nBasin,nMonth,nTag,nSIC]+FIELD[i,j,nMonth,nTag,nSIC]*MaskedArea[i,j]
-# 					BASIN_FIELD_normalized[nBasin,nMonth,nTag,nSIC]=BASIN_FIELD[nBasin,nMonth,nTag,nSIC]/BASIN_FIELD_TOT[nBasin,nMonth,nSIC]
-#                         if FoundInsideLoop==False:
-# 			    print IMBIEBasinMask[i,j]
-		     
-	#TMP=np.mean(np.squeeze(FIELD_TOT[:,:,:,nSIC]),axis=2) #To monthly means, for all locations
-	#n=np.sum(TMP[IMBIEBasinMask>0])
-	#print n
-        #print 'total SMB for '+SIC+'-SIC simulation based on non-basined approach='+str(n)
 
         TMP_FIELD_TOT=np.mean(BASIN_FIELD_TOT[:,:,nSIC],axis=1)
 	n=np.sum(TMP_FIELD_TOT)
