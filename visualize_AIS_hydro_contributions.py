@@ -1,19 +1,20 @@
 import numpy as np
 from scipy import spatial
+from sklearn.neighbors import NearestNeighbors
 import netCDF4 as nc
 from mpl_toolkits.basemap import Basemap
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from matplotlib.widgets import Cursor, Button
 from generate_region_mask import generate_region_mask
+from math import radians, sin, cos, asin, sqrt, pi, atan2
 
 ###User Input Here###
 Variable="PRECT"
 Regions=["LND","SOCN","SIO","SPO","SAO"]
 CaseNamePrefix="composite_ICE_wtag_"
 AtmSrcDirPrefix="/glade/scratch/hailong/amwg/climo/composite_ICE_wtag_"
-BasinFile="/glade/u/home/jfyke/liwg/AIS_snowfall_analysis/fyke_analysis/data/AIS_Full_basins_Zwally_CESMgrid.nc"
-BasinVariable="Zwallybasins"
+MaskFile="/glade/u/home/jfyke/liwg/AIS_snowfall_analysis/fyke_analysis/data/AIS_Full_basins_Zwally_CESMgrid.nc"
 ###User Input Ends###
 
 class viewer_2d(object):
@@ -71,7 +72,7 @@ class viewer_2d(object):
 	    j=np.argmin(np.absolute(self.latv-plat))
             print '*********'
 	    print 'Lat/lon: ',plat,'/',plon
-	    print 'Plotting Rignot basin #: '+str(self.Mask[j,i])
+	    print 'Plotting Zwally basin #: '+str(self.Mask[j,i])
 	    
 	    MaskValue=np.round(self.Mask[j,i]) 
 	    MaskValue=MaskValue.astype(int)-1#convert to integer and reduce by one since this is used to index into the Contributions array
@@ -129,13 +130,59 @@ if __name__=='__main__':
     Regions.append("Res")
     RegionLongName.append("Residual")
 
-    f=nc.Dataset(BasinFile)
-    IMBIEBasinMask=f.variables[BasinVariable][:,:]
+    f=nc.Dataset(MaskFile)
+    IMBIEBasinMask=f.variables["Zwallybasins"][:,:]
     IMBIEBasinMask=np.round(IMBIEBasinMask)
-    
     nIMBIEBasins=np.amax(IMBIEBasinMask)
     nIMBIEBasins=nIMBIEBasins.astype(int)
     f.close()
+      
+    def get_shortest_in(needleLat,needleLon, haystackLat, haystackLon):
+	"""needle is a single (lat,long) tuple.
+            haystack is a numpy array to find the point in
+            that has the shortest distance to needle
+	"""
+	radius_km=6371
+	haystackLat=np.radians(haystackLat)
+	needleLat=np.radians(needleLat)
+	haystackLon=np.radians(haystackLon)
+	needleLon=np.radians(needleLon)
+	dlat = haystackLat - needleLat
+	dlon = haystackLon - needleLon
+	a = np.square(np.sin(dlat/2.0)) + np.cos(needleLat) * np.cos(haystackLat) * np.square(np.sin(dlon/2.0))
+	great_circle_distance = 2 * np.arcsin(np.minimum(np.sqrt(a), np.repeat(1, len(a))))
+	d = radius_km * great_circle_distance
+	return np.min(d)    
+    
+    #Generate regions that are a function of distance from coast.
+    CoastMask=np.zeros((np.size(Area,0),np.size(Area,1)))
+    ContinentalMask=np.zeros((np.size(Area,0),np.size(Area,1)))
+    CoastMask[IMBIEBasinMask>0.]=1
+    CoastLon=[]
+    CoastLat=[]
+    #Make lat/lon list coastal ocean points around AIS
+    for nlon in np.arange(0,np.size(Area,1)):
+	nlat=0
+	CoastVal=1
+	while CoastVal==1:
+	    nlat=nlat+1
+	    CoastVal=CoastMask[nlat,nlon]
+	CoastLon.append(lon[nlat,nlon])
+        CoastLat.append(lat[nlat,nlon])
+
+    BinInterval=200.;
+    for nlat in np.arange(0,np.size(Area,0)):
+        for nlon in np.arange(0,np.size(Area,1)):
+	    if CoastMask[nlat,nlon]==1:
+	        ProximityToCoast=get_shortest_in( lat[nlat,nlon],lon[nlat,nlon] , CoastLat,CoastLon  )
+		nbin=np.round(ProximityToCoast/BinInterval)
+		ContinentalMask[nlat,nlon]=nbin
+    nContinentalBasins=np.amax(ContinentalMask)
+    print nContinentalBasins
+    nContinentalBasins=nContinentalBasins.astype(int)
+    #plt.pcolor(ContinentalBin)
+    #plt.colorbar()
+    #plt.show()
     
     #Initialize total and contribution fields
     
@@ -172,13 +219,17 @@ if __name__=='__main__':
 	    #Calculate residual
             FIELD[:,:,nMonth,-1,nSIC]=FIELD_TOT[:,:,nMonth,nSIC]-np.sum(FIELD[:,:,nMonth,:,nSIC],axis=2)
             
-            for nBasin in np.arange(0,nIMBIEBasins):
-	        iMask=np.where(IMBIEBasinMask==(nBasin+1))
+	    #Calculate basin-specific values
+            for nBasin in np.arange(0,nContinentalBasins):
+	        print '***'
+		print 'nBasin='+str(nBasin)
+	        iMask=np.where(ContinentalMask==(nBasin+1))
 		TMP=np.squeeze(FIELD_TOT[:,:,nMonth,nSIC])
 	        BASIN_FIELD_TOT[nBasin,nMonth,nSIC]=np.sum(TMP[iMask]*MaskedArea[iMask])
 		for nTag in np.arange(0,len(Regions)): #calculate monthly integrated flux into each basin, from each tagged source region
 		    TMP=np.squeeze(FIELD[:,:,nMonth,nTag,nSIC])
 		    BASIN_FIELD[nBasin,nMonth,nTag,nSIC]=np.sum(TMP[iMask]*MaskedArea[iMask])
+		    print BASIN_FIELD[nBasin,nMonth,nTag,nSIC]
 		    BASIN_FIELD_normalized[nBasin,nMonth,nTag,nSIC]=BASIN_FIELD[nBasin,nMonth,nTag,nSIC]/BASIN_FIELD_TOT[nBasin,nMonth,nSIC]		
 	    
 #             for i in np.arange(0,np.size(Area,0)):
@@ -212,7 +263,7 @@ if __name__=='__main__':
     dFIELD_normalized=(BASIN_FIELD_normalized[:,:,:,2]-BASIN_FIELD_normalized[:,:,:,0])
 	
     #Call viewer class to make plot.
-    print 'Constructing viewer...' 
-    fig_v=viewer_2d(IMBIEBasinMask,BASIN_FIELD,dFIELD_normalized,latv,lonv,lat,lon,RegionLongName,Variable,Month)
+    #print 'Constructing viewer...' 
+    fig_v=viewer_2d(ContinentalMask,BASIN_FIELD,dFIELD_normalized,latv,lonv,lat,lon,RegionLongName,Variable,Month)
 
     plt.show()
