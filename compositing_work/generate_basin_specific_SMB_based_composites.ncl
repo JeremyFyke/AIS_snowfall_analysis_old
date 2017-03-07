@@ -53,6 +53,7 @@ begin
        print("Loading monthly SST")
        all_files = systemfunc("ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/ocn/proc/tseries/monthly/SST/*.B1850C5CN.*nc")
        in = addfiles(all_files,"r")
+       ListSetType (in, "cat")       
        SSTm = in[:]->SST(:,0,:,:) ; highest ocean level     
        SSTm = replace_mask_values(SSTm,-1.8)
        delete(in)
@@ -60,6 +61,7 @@ begin
        print("Loading monthly EVAP")
        all_files = systemfunc("ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/ocn/proc/tseries/monthly/EVAP_F/*.B1850C5CN.*nc")
        in = addfiles(all_files,"r")
+       ListSetType (in, "cat")        
        EVAPm = in[:]->EVAP_F ; highest ocean level     
        EVAPm = replace_mask_values(EVAPm,0.0)
        delete(in)       
@@ -69,6 +71,7 @@ begin
        print("   ...SH...")
        all_files = systemfunc("ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/ice/proc/tseries/monthly/aice/*.B1850C5CN.*sh*nc")
        in = addfiles(all_files,"r")
+       ListSetType (in, "cat")        
        tmp = in[:]->aice
        delete(in)
        nt=dimsizes(tmp(:,0,0))

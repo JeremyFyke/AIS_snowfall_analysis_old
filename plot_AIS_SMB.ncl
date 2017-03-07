@@ -46,24 +46,19 @@ begin
    res@mpMaxLatF            = -60 ; specify min lat
    res@cnFillOn             = True
    res@cnLinesOn           = False
+   res@lbTitleString       = "Precipitation (m/yr w.e.)"
    AIS_climatology_plot = gsn_csm_contour_map_polar(wks,PRECIP_climatology,res)
 
    delete(res)
    wks=gsn_open_wks("png","figs/AIS_std_precip_map")
    res=get_default_res()
-   res@gsnDraw  	     = True	      ; Do not draw plot
-   res@gsnFrame 	     = True	      ; Do not advance frame
+   res@gsnDraw  	    = True	      ; Do not draw plot
+   res@gsnFrame 	    = True	      ; Do not advance frame
    res@gsnPolar             = "SH"
    res@mpMaxLatF            = -60 ; specify min lat
    res@cnFillOn             = True
-   res@cnLinesOn           = False
+   res@cnLinesOn            = False
+   res@lbTitleString        = "Precipitation SD (m/yr w.e.)"
    AIS_climatology_plot = gsn_csm_contour_map_polar(wks,PRECIP_variability,res)   
-
-   ;plot basin-scale accumulation distribution and time series
-   FileName="figs/AIS_precip_distribution"
-   Xlabel="Integrated precipitation (Gt/yr)"
-   Ylabel="PDF (%)"
-   MainString=str_concat((/ "CV=",tostring(PRECIP_AIS_integrated_std/PRECIP_AIS_integrated_avg)/))
-   plot_pdf(PRECIP_AIS_integrated,FileName,Xlabel,Ylabel,MainString)   
-
+   
 end

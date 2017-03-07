@@ -1,5 +1,4 @@
 ;Local code snippets that are re-used among analysis routines
-
 function get_default_wks()
   begin
   
@@ -13,7 +12,7 @@ function get_default_wks()
 
 function get_default_res()
   begin
-  
+     
      default_res = True
      default_res@gsnDraw               = False           ; Do not draw plot
      default_res@gsnFrame              = False           ; Do not advance frame
@@ -21,6 +20,18 @@ function get_default_res()
      default_res@mpOutlineOn          = False
      default_res@gsnAddCyclic          = True       
      default_res@cnInfoLabelOn         = False       ; turn off info label
+     tt=5
+     default_res@tiMainFontThicknessF = tt
+     default_res@tiXAxisFontThicknessF = tt
+     default_res@tiYAxisFontThicknessF = tt
+     default_res@lbLabelFontThicknessF = tt  
+     default_res@tmXBLabelFontThicknessF = tt
+     default_res@tmXTLabelFontThicknessF = tt  
+     default_res@tmYLLabelFontThicknessF = tt      
+     default_res@tmYRLabelFontThicknessF = tt
+     default_res@lbTitleOn = False
+     default_res@lbTitlePosition = "Bottom"
+     default_res@lbTitleFontThicknessF = tt
      return default_res
      
   end
