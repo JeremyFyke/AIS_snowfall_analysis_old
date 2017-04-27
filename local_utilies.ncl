@@ -38,16 +38,15 @@ function get_default_res()
 ;;;     
 function get_AIS_mask()
    begin
-      SD="/glade/u/home/jfyke/liwg/AIS_snowfall_analysis/fyke_analysis/"
-      fAISMask = addfile(str_concat((/SD,"AIS_basin_masks/AIS_Full_basins_Zwally_CESMgrid.nc"/)),"r")
+      fAISMask = addfile("/glade/u/home/jfyke/liwg/AIS_snowfall_analysis/fyke_analysis/AIS_basin_masks/AIS_Full_basins_Zwally_CESMgrid.nc","r")
       AISMask = fAISMask->Zwallybasins
       return AISMask
    end
 ;;;      
 function get_LandFrac()
    begin
-      in = addfile("/glade/scratch/hailong/archive/composite_ICE_wtag_mean/atm/hist/composite_ICE_wtag_mean.cam.h0.0001-01.nc","r")
-      LandFrac = rm_single_dims(in->LANDFRAC)
+      in = addfile("/glade/p/cesmLE/CESM-CAM5-BGC-LE/atm/proc/tseries/monthly/LANDFRAC/b.e11.B1850C5CN.f09_g16.005.cam.h0.LANDFRAC.040001-049912.nc","r")
+      LandFrac = dim_avg_n(rm_single_dims(in->LANDFRAC),0)
       return LandFrac
    end
 ;;;
@@ -64,6 +63,8 @@ begin
    field!1="lon"
    field&lat=lat
    field&lon=lon
+   field&lat@units="degrees_north"
+   field&lon@units="degrees_east" 
    return field
 end
 ;;;
@@ -117,204 +118,252 @@ procedure plot_AIS_and_basin_accum_PDFs(AIS_integrated_TS,AIS_integrated_TS_avg,
 					nAISMASK)
 local wks,res,plot,Vector,bin_min,bin_max,opt,nbins,probability,plot0,b,bm1,plot1
 begin					
-     wks = gsn_open_wks ("png","../figs/Precip_normalized_distribution")
-     Vector=AIS_integrated_TS(:)/AIS_integrated_TS_avg
-     bin_min=0.2
-     bin_max=2.0
-     opt=True
-     opt@bin_min=bin_min
-     opt@bin_max=bin_max
-     nbins=75
-     probability=pdfx( Vector , nbins , opt)
-     res=True
-     res@xyLineThicknessF       = 4
-     res@tiYAxisString          = "PDF (%)"
-     res@tiXAxisString          = "Normalized integrated accumulation" 
-     res@trXMinF = bin_min
-     res@trXMaxF = bin_max
-     res@gsnDraw          = False
-     res@gsnFrame         = False
-     
-     plot0=gsn_csm_xy (wks,probability@bin_center,probability,res) 
-     
-     res@xyLineThicknessF       = 2
-     res@xyLineColor            = "grey"         
-     do b = 1,nAISMask
-        bm1=b-1
-        Vector=Basin_integrated_TS(:,bm1)/Basin_integrated_TS_avg(bm1)
-        probability=pdfx( Vector , nbins , opt)     
-	plot1=gsn_csm_xy (wks,probability@bin_center,probability,res)
-	overlay(plot0,plot1)
-     end do
-     draw(plot0)
-     frame(wks)
+   wks = gsn_open_wks ("png","../figs/Precip_normalized_distribution")
+   Vector=AIS_integrated_TS(:)/AIS_integrated_TS_avg
+   bin_min=0.2
+   bin_max=2.0
+   opt=True
+   opt@bin_min=bin_min
+   opt@bin_max=bin_max
+   nbins=75
+   probability=pdfx( Vector , nbins , opt)
+   res=True
+   res@xyLineThicknessF       = 4
+   res@tiYAxisString          = "PDF (%)"
+   res@tiXAxisString          = "Normalized integrated accumulation" 
+   res@trXMinF = bin_min
+   res@trXMaxF = bin_max
+   res@gsnDraw          = False
+   res@gsnFrame         = False
+
+   plot0=gsn_csm_xy (wks,probability@bin_center,probability,res) 
+
+   res@xyLineThicknessF       = 2
+   res@xyLineColor            = "grey"         
+   do b = 1,nAISMask
+      bm1=b-1
+      Vector=Basin_integrated_TS(:,bm1)/Basin_integrated_TS_avg(bm1)
+      probability=pdfx( Vector , nbins , opt)     
+      plot1=gsn_csm_xy (wks,probability@bin_center,probability,res)
+      overlay(plot0,plot1)
+   end do
+   draw(plot0)
+   frame(wks)
 end
 
 function composite_PAGES_data(climate_lat_vec,climate_lon_vec,AISMask,nAISMask)
 local names,tmp
 begin
+   ;;;Read ice core data;;;
    SD="/glade/u/home/jfyke/liwg/AIS_snowfall_analysis/fyke_analysis/jer_data_dir/PAGES_data/"
    names = asciiread(str_concat((/SD,"names.txt"/)),-1,"string")
    ; geo data
    tmp = asciiread(str_concat((/SD,"lat_lon_elev.txt"/)),(/80,3/),"double")
    ice_lat = tmp(:,0)
    ice_lon = tmp(:,1)
+   ice_lon=where(ice_lon<0.,ice_lon+360.,ice_lon)
    ice_elev = tmp(:,2)
-   delete(tmp)
    ; actual data 
    ; first column is year, other 80 columns are individual cores
-   tmp = asciiread(str_concat((/SD,"data.txt"/)),(/796,81/),"double")
+   tmp := asciiread(str_concat((/SD,"data.txt"/)),(/796,81/),"double")
    ice_year = tmp(:,0)
    ice_coresmb = tmp(:,1::)
    ds=dimsizes(ice_coresmb)
-   print(ds)
    nrecs=ds(0)   
-   ncores=ds(1) 
+   ncores=ds(1)
    ice_coresmb@_FillValue = -9999.
    ice_coresmb = where(ice_coresmb.lt.0.,ice_coresmb@_FillValue,ice_coresmb)
-   delete(tmp)  
+   ;ice_coresmb=dtrend_quadratic_msg_n(ice_coresmb,False,False,0)
+   ;ice_coresmb=dim_standardize_n(ice_coresmb,0,1)
 
    ice_cv=dim_stddev_n_Wrap(ice_coresmb,0)/dim_avg_n_Wrap(ice_coresmb,0)
    
    climate_lat=conform(AISMask,climate_lat_vec,0)
    climate_lon=conform(AISMask,climate_lon_vec,1)
 
-   core_grid_loc_indices=getind_latlon2d(climate_lat,climate_lon,ice_lat,ice_lon)
-   ;printVarSummary(core_grid_loc_indices)
-   core_basin_naccum=new(toint(nAISMask),"integer")
-   core_basin_naccum(:)=0
+   print("###Cliamte lat/lon range###")   
+   print(min(climate_lat))
+   print(max(climate_lat))
+   print(min(climate_lon))
+   print(max(climate_lon))
+   
+   print("###Ice core lat/lon range###")
+   print(min(ice_lat))
+   print(max(ice_lat))
+   print(min(ice_lon))
+   print(max(ice_lon))   
+
+   count=new((/nrecs,toint(nAISMask)/),"integer")
+   count(:,:)=0
    basin_composite_core=new((/nrecs,toint(nAISMask)/),typeof(ice_coresmb))
    basin_composite_core(:,:)=0.0
+   basin_composite_core@_FillValue = -9999.
+   AISMask!0="lat"
+   AISMask!1="lon"
+   AISMask&lat=climate_lat_vec
+   AISMask&lon=climate_lon_vec
 
-   ice_coresmb=dtrend_quadratic_msg_n(ice_coresmb,False,False,0)
-   ice_coresmb=dim_standardize_n(ice_coresmb,0,1) ;CONTINUE HERE!!! 
-   
+   ;;;;Stack ice core data in basin-specific composites;;;
    do c=1,ncores
-      cm1=c-1
-      b=toint(AISMask(core_grid_loc_indices(cm1,0),core_grid_loc_indices(cm1,1)))
-      bm1=b-1
-      if (b.gt.0) then ;ignore ocean-falling cores...
-         basin_composite_core(:,bm1)=basin_composite_core(:,bm1)+ice_coresmb(:,cm1) ;accumulate basin-falling core
-	 core_basin_naccum(bm1)=core_basin_naccum(bm1)+1 ; bump basin counter
+      cm1=c-1   
+      core_grid_loc_indices=getind_latlon2d(climate_lat,climate_lon,ice_lat(cm1),ice_lon(cm1))
+      i=core_grid_loc_indices(0,0)
+      j=core_grid_loc_indices(0,1)
+      lat=ice_lat(cm1)
+      lon=ice_lon(cm1)
+      print("Core name="+names(cm1))
+      print("lat="+lat)
+      print("lon="+lon)
+      b=round(AISMask(i,j),3)     
+      ;b=round(AISMask({lat},{lon}),3)
+      print("basin="+b)
+
+      if (b.gt.0) then ;If core falls in a defined basin (and not the ocean), stack core data
+         print("basin="+b)
+         bm1=b-1
+         do t = 1,nrecs
+	    tm1=t-1
+	    if (.not. ismissing(ice_coresmb(tm1,cm1))) then
+               basin_composite_core(tm1,bm1)=basin_composite_core(tm1,bm1)+ice_coresmb(tm1,cm1) ;accumulate basin-falling core
+	       count(tm1,bm1)=count(tm1,bm1)+1 ; bump basin counter
+	    end if
+	  end do
       end if
    end do
    do b = 1,nAISMask
-      do r=1,nrecs
+      do t=1,nrecs
 	 bm1=b-1
-	 rm1=r-1
-	 if (core_basin_naccum(bm1).gt.0) then
-            basin_composite_core(rm1,bm1)=basin_composite_core(rm1,bm1)/core_basin_naccum(bm1)
+	 tm1=t-1
+	 if (count(tm1,bm1).gt.0) then
+                basin_composite_core(tm1,bm1)=basin_composite_core(tm1,bm1)/count(tm1,bm1)
+	 else
+	        basin_composite_core(tm1,bm1)=basin_composite_core@_FillValue
 	 end if
       end do
    end do
-   ;wks = gsn_open_wks("png","composite_timeseries")
-   ;res=True
-   ;plot = gsn_csm_y(wks,basin_composite_core(:,10),res)
-   ; calculate cross correlation
-   smbcorr = new((/80,80/),"double")
-
-   do i = 0,79
-	   do j = 0,79
-	   smbcorr(i,j) = escorc(ice_coresmb(:,i),ice_coresmb(:,j))
-	   end do
-   end do   
-   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-   wks = gsn_open_wks("pdf","Ant_cores_correlation")
-
-
-   res   = True
-   res@mpGridAndLimbOn        = False
-   res@mpFillOn               = False
-   res@gsnPolar               = "SH"
-   res@mpMinLatF  = -90.
-   res@mpMaxLatF  = -62.
-   res@cnFillOn          = True              ; color plot desired
-   res@cnLineLabelsOn    = False             ; turn off contour lines
-   res@txFontHeightF     = 0.015 
-   res@mpDataBaseVersion = "MediumRes"            ; choose higher resolution
-   ;res@mpOutlineDrawOrder = "PreDraw"
-
-   res@gsnDraw = False
-   res@gsnFrame = False
-
-   gsn_define_colormap(wks,"temp_diff_18lev")      ; -1: blue // 0: white // 1: red
-
-   do i = 0,79,1
-
-   map = gsn_csm_map(wks,res)
+   
+   plot_core_correlations=0
+   if (plot_core_correlations.eq.1) then
+   
+      ;;; Jan code follows
+      smbcorr = new((/80,80/),"double")
+      do i = 0,79
+	      do j = 0,79
+	      smbcorr(i,j) = escorc(ice_coresmb(:,i),ice_coresmb(:,j))
+	      end do
+      end do   
+      ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+      wks = gsn_open_wks("pdf","Ant_cores_correlation")
 
 
-   putmark = new(80,"graphic")
-   putmark2= new(80,"graphic")
+      res   = True
+      res@mpGridAndLimbOn        = False
+      res@mpFillOn               = False
+      res@gsnPolar               = "SH"
+      res@mpMinLatF  = -90.
+      res@mpMaxLatF  = -62.
+      res@cnFillOn          = True              ; color plot desired
+      res@cnLineLabelsOn    = False             ; turn off contour lines
+      res@txFontHeightF     = 0.015 
+      res@mpDataBaseVersion = "MediumRes"            ; choose higher resolution
+      ;res@mpOutlineDrawOrder = "PreDraw"
 
-   resp = True 
-   resp@gsMarkerIndex = 16          ; Use filled dots for markers.
+      res@gsnDraw = False
+      res@gsnFrame = False
 
-   do j = 0, 79,1
-   resp@gsMarkerIndex = 4          ; overdraw with empty dot
-   resp@gsMarkerColor      = "black"
+      gsn_define_colormap(wks,"temp_diff_18lev")      ; -1: blue // 0: white // 1: red
 
-   putmark2(j) = gsn_add_polymarker(wks,map,ice_lon(j),ice_lat(j),resp)
-   tmp = tointeger(smbcorr(i,j)+2.6+(smbcorr(i,j)+0.6)*14)
-   if (ismissing(tmp)) then
-	   resp@gsMarkerColor      = "white"
-   else
-	   resp@gsMarkerColor      = tmp
+      do i = 0,79,1
+
+      map = gsn_csm_map(wks,res)
+
+
+      putmark = new(80,"graphic")
+      putmark2= new(80,"graphic")
+
+      resp = True 
+      resp@gsMarkerIndex = 16          ; Use filled dots for markers.
+
+      do j = 0, 79,1
+	  resp@gsMarkerIndex = 4          ; overdraw with empty dot
+	  resp@gsMarkerColor      = "black"
+
+	  putmark2(j) = gsn_add_polymarker(wks,map,ice_lon(j),ice_lat(j),resp)
+	  tmp := tointeger(smbcorr(i,j)+2.6+(smbcorr(i,j)+0.6)*14)
+	  if (ismissing(tmp)) then
+		  resp@gsMarkerColor      = "white"
+	  else
+		  resp@gsMarkerColor      = tmp
+	  end if
+	  resp@gsMarkerIndex = 16          ; Use filled dots for markers.
+	  putmark(j) = gsn_add_polymarker(wks,map,ice_lon(j),ice_lat(j),resp)
+	  end do
+
+
+	  ; now plot location of core on top
+	  pres = True
+	  pres@gsMarkerSizeF = 0.02
+	  pres@gsMarkerIndex = 16
+	  actualcore = gsn_add_polymarker(wks,map,ice_lon(i),ice_lat(i),pres)
+
+
+	  ; plot name on top
+	  rest = True
+	  rest@txFontHeightF = 0.03
+	  gsn_text_ndc(wks,names(i),0.5,0.1,rest)
+
+	  draw(map)
+	  frame(wks)
+
+	  delete(map)
+	  delete(putmark)
+	  delete(putmark2)
+	  delete(actualcore)
+      end do
    end if
-   resp@gsMarkerIndex = 16          ; Use filled dots for markers.
-   putmark(j) = gsn_add_polymarker(wks,map,ice_lon(j),ice_lat(j),resp)
-   end do
 
-
-   ; now plot location of core on top
-   pres = True
-   pres@gsMarkerSizeF = 0.02
-   pres@gsMarkerIndex = 16
-   actualcore = gsn_add_polymarker(wks,map,ice_lon(i),ice_lat(i),pres)
-
-
-   ; plot name on top
-   rest = True
-   rest@txFontHeightF = 0.03
-   gsn_text_ndc(wks,names(i),0.5,0.1,rest)
-
-   draw(map)
-   frame(wks)
-
-   delete(map)
-   delete(putmark)
-   delete(putmark2)
-   delete(actualcore)
-   end do
-
-   exit
    return([/ice_lat,ice_lon,ice_elev,ice_year,ice_coresmb,basin_composite_core,ice_cv/])
    end
 
-function calculate_interbasin_correlations(BasinAccum,nAISMask,time)
+function calculate_interbasin_correlations(BasinAccum,nAISMask)
    begin
    Xcor_basin_by_basin=new((/toint(nAISMask),toint(nAISMask)/),"double")
    Rtest_basin_by_basin=new((/toint(nAISMask),toint(nAISMask)/),"double")
-   nPosCorrs=new(toint(nAISMask),"double")
-   nNegCorrs=new(toint(nAISMask),"double")
-   nPosCorrs(:)=0.0
-   nNegCorrs(:)=0.0
+   nPosCorrs_total=new(toint(nAISMask),"double")
+   nNegCorrs_total=new(toint(nAISMask),"double")
+   nPosCorrs_significant=new(toint(nAISMask),"double")
+   nNegCorrs_significant=new(toint(nAISMask),"double")   
+   nPosCorrs_total(:)=0.0
+   nNegCorrs_total(:)=0.0   
+   nPosCorrs_significant(:)=0.0
+   nNegCorrs_significant(:)=0.0
    siglvl=0.05
+   ds=dimsizes(BasinAccum)
+   nt=ds(0)
+   nb=ds(1)
    do b=1,nAISMask
       bm1=b-1      
       do bc=1,nAISMask ;loop over all basins, color in based on correlation at that basin
 	 bcm1=bc-1
 	 Xcor_basin_by_basin(bm1,bcm1)=escorc(BasinAccum(:,bm1),BasinAccum(:,bcm1))
-	 Rtest_basin_by_basin(bm1,bcm1)=rtest(Xcor_basin_by_basin(bm1,bcm1),dimsizes(time),0)
-	 if ( (Xcor_basin_by_basin(bm1,bcm1).gt.0) .and. (Rtest_basin_by_basin(bm1,bcm1).lt.siglvl) ) then
-	    nPosCorrs(bm1)=nPosCorrs(bm1)+1
-	 end if
-	 if ( (Xcor_basin_by_basin(bm1,bcm1).lt.0) .and. (Rtest_basin_by_basin(bm1,bcm1).lt.siglvl) ) then
-	    nNegCorrs(bm1)=nNegCorrs(bm1)+1
-	 end if	 
+	 Rtest_basin_by_basin(bm1,bcm1)=rtest(Xcor_basin_by_basin(bm1,bcm1),nt,0)
+	 if (.not. ismissing(Xcor_basin_by_basin(bm1,bcm1))) then
+	    if (Xcor_basin_by_basin(bm1,bcm1).gt.0) then
+	       nPosCorrs_total(bm1)=nPosCorrs_total(bm1)+1
+	       if (Rtest_basin_by_basin(bm1,bcm1).lt.siglvl) then
+		  nPosCorrs_significant(bm1)=nPosCorrs_significant(bm1)+1
+	       end if
+	    end if
+	    if (Xcor_basin_by_basin(bm1,bcm1).lt.0) then
+	       nNegCorrs_total(bm1)=nNegCorrs_total(bm1)+1
+	       if (Rtest_basin_by_basin(bm1,bcm1).lt.siglvl) then
+		  nNegCorrs_significant(bm1)=nNegCorrs_significant(bm1)+1
+	       end if
+	    end if
+	 end if 
       end do
    end do   
-   return([/nPosCorrs,nNegCorrs,Xcor_basin_by_basin,Rtest_basin_by_basin/])
+   return([/nPosCorrs_total,nNegCorrs_total,nPosCorrs_significant,nNegCorrs_significant,Xcor_basin_by_basin,Rtest_basin_by_basin/])
    end
 
 function make_correlation_mask(AISMask,nAISMask,Xcor,time,bm1)

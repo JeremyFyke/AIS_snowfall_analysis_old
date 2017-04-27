@@ -216,6 +216,7 @@ begin
     AIS_integrated_TS(:)=0.
     ; calculate basin-specific annual mass flux time series.
     do b = 1,nAISMask
+       print("  ")
        print(str_concat((/"Building annual integrated precip timeseries for basin ",tostring(b),":"/)))
        bm1=b-1
        BasinMask=where(AISMask.eq.b,1,0)
@@ -227,34 +228,24 @@ begin
        Basin_integrated_TS_std(bm1)=statx(1)
        Basin_integrated_TS_5th_percentile(bm1)=statx(24)
        Basin_integrated_TS_95th_percentile(bm1)=statx(25)
-       print("Average basin PRECIP")
-       print(Basin_integrated_TS_avg(bm1)+1.-1.)
-       print("Standard Deviation basin PRECIP")
-       print(Basin_integrated_TS_std(bm1)+1.-1.)
-       print("5/95 percentile basin PRECIP")
-       print(Basin_integrated_TS_5th_percentile(bm1)+1.-1.)
-       print(Basin_integrated_TS_95th_percentile(bm1)+1.-1.)
-       print("Min basin PRECIP")    
-       print(statx(2)+1.-1.)    
-       print("Max basin PRECIP")    
-       print(statx(14)+1.-1.)             
        AIS_integrated_TS(:)=AIS_integrated_TS(:)+dble2flt(Basin_integrated_TS(:,bm1))
-       
+       print("Average basin PRECIP="+Basin_integrated_TS_avg(bm1))
+       print("Standard Deviation basin PRECIP="+Basin_integrated_TS_std(bm1))
+       print("5/95 percentile basin PRECIP="+Basin_integrated_TS_5th_percentile(bm1)+"/"+Basin_integrated_TS_95th_percentile(bm1))
+       print("Min basin PRECIP="+statx(2))    
+       print("Max basin PRECIP="+statx(14))             
      end do
+     print("Min/Max basin PRECIP="+min(Basin_integrated_TS_avg)+"/"+max(Basin_integrated_TS_avg))
      AIS_integrated_TS_avg=avg(AIS_integrated_TS)
      AIS_integrated_TS_std=stddev(AIS_integrated_TS)
      
-     print("Average AIS PRECIP")
-     print(AIS_integrated_TS_avg)
-     print("Standard Deviation AIS PRECIP")
-     print(AIS_integrated_TS_std)         
+     print("Average AIS PRECIP="+AIS_integrated_TS_avg)
+     print("Standard Deviation AIS PRECIP="+AIS_integrated_TS_std)         
 
      AIS_integrated_CV=AIS_integrated_TS_std/AIS_integrated_TS_avg
      Basin_integrated_CV=avg(Basin_integrated_TS_std/Basin_integrated_TS_avg)
-     print("Average AIS CV")
-     print(AIS_integrated_CV)
-     print("Basin-average CV")
-     print(Basin_integrated_CV)
+     print("Average AIS CV="+AIS_integrated_CV)
+     print("Basin-average CV="+Basin_integrated_CV)
      
      ;plot_AIS_and_basin_accum_PDFs(AIS_integrated_TS,AIS_integrated_TS_avg,\
      ;                              Basin_integrated_TS,Basin_integrated_TS_avg,\
