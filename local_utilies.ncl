@@ -179,19 +179,7 @@ begin
    ice_cv=dim_stddev_n_Wrap(ice_coresmb,0)/dim_avg_n_Wrap(ice_coresmb,0)
    
    climate_lat=conform(AISMask,climate_lat_vec,0)
-   climate_lon=conform(AISMask,climate_lon_vec,1)
-
-   print("###Cliamte lat/lon range###")   
-   print(min(climate_lat))
-   print(max(climate_lat))
-   print(min(climate_lon))
-   print(max(climate_lon))
-   
-   print("###Ice core lat/lon range###")
-   print(min(ice_lat))
-   print(max(ice_lat))
-   print(min(ice_lon))
-   print(max(ice_lon))   
+   climate_lon=conform(AISMask,climate_lon_vec,1) 
 
    count=new((/nrecs,toint(nAISMask)/),"integer")
    count(:,:)=0
@@ -211,15 +199,13 @@ begin
       j=core_grid_loc_indices(0,1)
       lat=ice_lat(cm1)
       lon=ice_lon(cm1)
-      print("Core name="+names(cm1))
-      print("lat="+lat)
-      print("lon="+lon)
+      ;print("Core name="+names(cm1))
+      ;print("lat="+lat)
+      ;print("lon="+lon)
       b=round(AISMask(i,j),3)     
-      ;b=round(AISMask({lat},{lon}),3)
-      print("basin="+b)
+      ;print("basin="+b)
 
       if (b.gt.0) then ;If core falls in a defined basin (and not the ocean), stack core data
-         print("basin="+b)
          bm1=b-1
          do t = 1,nrecs
 	    tm1=t-1

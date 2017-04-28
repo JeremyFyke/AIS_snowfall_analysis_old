@@ -5,13 +5,13 @@ load "plotting_utilities.ncl"
 begin   
 
    plot_AIS_SMB_spatial_fields=0
-   plot_AISMask=1
+   plot_AISMask=0
    plot_dSIC=0
    plot_dSIC_plus_dZ500=0
    plot_dSST_global=0
    plot_dSLP_global=0
    plot_dMoisture_plus_SIC=0
-   plot_dMoisture_dZ500_transport=0
+   plot_dMoisture_dZ500_transport=1
    plot_non_annular_difference=0
    plot_dMoisture_plus_basin_correlation=0
    plot_evap_to_transport_ratio=0
@@ -19,8 +19,8 @@ begin
    plot_matrix_of_CESM_interbasin_correlations=0
    plot_spatial_correlation_RACMO=0
    plot_matrix_of_RACMO_interbasin_correlations=0
-   plot_spatial_correlation_PAGES=1
-   plot_matrix_of_PAGES_interbasin_correlations=1   
+   plot_spatial_correlation_PAGES=0
+   plot_matrix_of_PAGES_interbasin_correlations=0 
    plot_seasonal_cycle_difference=0
    plot_non_annular_difference=0
    plot_ice_core_correlations=0
@@ -383,12 +383,10 @@ begin
 
       if(plot_dMoisture_dZ500_transport.eq.1) then
          wks = gsn_open_wks (wks_type,str_concat((/"figs/dMoisture_transport_dZ500",sprinti("%0.2i", b)/)))
-	 moisture_plot=plot_vector_scalar_field(UQ_VERT_INTEGRAL_diff,VQ_VERT_INTEGRAL_diff,Z500_diff,wks,0)
+	 moisture_plot=plot_vector_scalar_field(UQ_VERT_INTEGRAL_diff,VQ_VERT_INTEGRAL_diff,Z500_diff,wks,0,-30)
 	 sigfield=where(UQ_VERT_INTEGRAL_alpha.gt.VQ_VERT_INTEGRAL_alpha ,\
 	                UQ_VERT_INTEGRAL_alpha,VQ_VERT_INTEGRAL_alpha)
 	 sigfield=add_lat_lon_arrays(Z500_alpha,lat,lon)
-	 print(max(sigfield))
-	 print(min(sigfield))
 	 significance_plot=plot_significance(sigfield,wks)
 	 correlation_plot=plot_basin_correlation(CorrMask_CESM,wks,1,-30)
 	 basin_plot=plot_basin(BasinMask,wks)

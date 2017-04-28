@@ -5,8 +5,8 @@ calculate_z500_and_z850=0
 
 print("Loading lev,hyam,hybm,p0mb")
 in=addfile("/glade/p/cesmLE/CESM-CAM5-BGC-LE/atm/proc/tseries/monthly/VQ/b.e11.BRCP85C5CNBDRD.f09_g16.105.cam.h0.VQ.200601-210012.nc","r")
-lev=in->lev ;hPA, used lines 760-770 of amwg_diagostics/code/taylor_utils.ncl for reference to determine hPA units...
-lev=lev*100.
+lev=in->lev ;hPa, used lines 760-770 of amwg_diagostics/code/taylor_utils.ncl for reference to determine hPA units...
+lev=lev*100. ; to Pa
 hyam = in->hyam
 hybm = in->hybm
 P0mb=(in->P0)/100. ; convert to hPa/mb
@@ -24,7 +24,7 @@ delete(in)
 ;datai=input data to vertically integrate
 ;psfc=surface pressures
 ;punits: units of p and psfc.  0: hPa/mb.  1: Pa.
-
+;sum or average: 0=average, 1=sum
 
 g=9.80665
 
@@ -35,7 +35,7 @@ if (calculate_vertically_integrated_moisture_transport.eq.1) then
    ListSetType (in, "cat")
    VQ=in[:]->VQ
    delete(in)
-   VQ_vert_int=wgt_vert_avg_beta(lev,VQ,PSFC,1,0)/g
+   VQ_vert_int=wgt_vert_avg_beta(lev,VQ,PSFC,1,0)
 
    print("Loading UQ")
    all_files = systemfunc("ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/atm/proc/tseries/monthly/UQ/*.B1850C5CN.*.nc")
@@ -44,7 +44,7 @@ if (calculate_vertically_integrated_moisture_transport.eq.1) then
    UQ=in[:]->UQ
    delete(in)
    print("Calculating vertically integrated moisture transport")
-   UQ_vert_int=wgt_vert_avg_beta(lev,UQ,PSFC,1,0)/g
+   UQ_vert_int=wgt_vert_avg_beta(lev,UQ,PSFC,1,0)
 
    print("Writing UQ_vert_int to file")
    system("/bin/rm -f jer_data_dir/Vertical_Int_Moisture_Transport_UQ.nc")

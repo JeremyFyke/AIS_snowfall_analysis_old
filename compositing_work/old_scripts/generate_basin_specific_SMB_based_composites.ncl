@@ -10,27 +10,13 @@ begin
 
     year2sec=31557600.
     actually_generate_composites=True
-    generate_basin_and_longitude_monthly_timeseries=False
+    generate_basin_timeseries=False
+    generate_zonal_timeseries=False    
     
     print("Loading masks, lons, lats, areas, etc.")
-    in = addfile("/glade/u/home/lenaerts/work/CESM_LE/masks_cice_sh.nc","r")
-    cicemask_sh = in->tmask
-    area_sh = in->uarea
-    lat_sh = in->TLAT
-    lon_sh = in->TLON
-    in = addfile("/glade/u/home/lenaerts/work/CESM_LE/masks_cice_nh.nc","r")
-    cicemask_nh = in->tmask
-    area_nh = in->uarea
-    lat_nh_gx1v6 = in->TLAT
-    lon_nh_gx1v6 = in->TLON
     in = addfile("/glade/u/home/lenaerts/work/CESM_LE/masks_pop.nc","r")
-    poparea = in->TAREA
-    lat_gx1v6 = in->TLAT
-    lon_gx1v6 = in->TLONG
-    delete_VarAtts(lat_gx1v6,"_CoordinateAxisType")
-    delete_VarAtts(lon_gx1v6,"_CoordinateAxisType")
-    nlat=dimsizes(poparea(:,0))
-    nlon=dimsizes(poparea(0,:))
+    nlat=dimsizes(in->TLAT)
+    nlon=dimsizes(in->TLONG)
     LandFrac = get_LandFrac()
     AISMask = get_AIS_mask()
     nAISMask = doubletoint(max(AISMask))
@@ -40,7 +26,6 @@ begin
     lat_fv09x125 = in->lat
     lon_fv09x125 = in->lon
     lev_fv09x125 = in->lev
-    ;load monthly SLP data
     delete(in)
     BasinMask=new(dimsizes(AISMask),"double")
     
@@ -62,35 +47,32 @@ begin
        ds=dimsizes(PRECIPm)
        nt=ds(0)
        
-       if (generate_basin_and_longitude_monthly_timeseries) then
-	  ;Print monthly basin-integrated precip to file
+       if (generate_basin_timeseries) then
 	  Basin_integrated_TS_mon = new((/nt,nAISMask/),"double")
 	  do b = 1,nAISMask
              print(b)
              bm1=b-1
              BasinMask=where(AISMask.eq.b,1,0)
              Basin_integrated_TS_mon(:,bm1)=calculate_integrated_timeseries(PRECIPm,LandFrac,LandArea,BasinMask)
-             Basin_integrated_TS_mon(:,bm1)=Basin_integrated_TS_mon(:,bm1) / 1.e9 ; integrated AIS PRECIP for basin - m^3/yr -> kg/yr -> Gt/yr  
+             Basin_integrated_TS_mon(:,bm1)=Basin_integrated_TS_mon(:,bm1) / 1.e9 
 	  end do
 	  save_timeseries(Basin_integrated_TS_mon,"BasinAccumulationTimeSeries_monthly.nc")
-	  ;lonstride=2
-	  ;nl=toint(ds(2)/lonstride)
-	  ;Longitude_integrated_TS_mon = new((/nt,nl/),"double") 
-	  ;LongMask=new(dimsizes(AISMask),"integer")
-	  ;print(dimsizes(LongMask))
-	  ;do l = 0,nl-1
-          ;   ls=l*2
-          ;   print(l)
-	  ;   LongMask(:,:)=0
-	  ;   LongMask(:,ls:ls+1)=1
-	  ;   BasinMask=where((AISMask.gt.0).and.(LongMask.eq.1),1,0)
-          ;   wks = gsn_open_wks ("png", "BasinMask")
-          ;   res=True
-          ;   plotv  = gsn_csm_contour(wks, BasinMask, res)	  
-          ;   Longitude_integrated_TS_mon(:,l)=calculate_integrated_timeseries(PRECIPm,LandFrac,LandArea,BasinMask)
-          ;   Longitude_integrated_TS_mon(:,l)=Longitude_integrated_TS_mon(:,l) / 1.e9 ; integrated AIS PRECIP for basin - m^3/yr -> kg/yr -> Gt/yr
-	  ;end do
-	  ;save_timeseries(Longitude_integrated_TS_mon,"LongitudeAccumulationTimeSeries_monthly.nc")       
+	end if
+	
+	if (generate_zonal_timeseries) then
+	  lonstride=2
+	  nl=toint(ds(2)/lonstride)
+	  Longitude_integrated_TS_mon = new((/nt,nl/),"double") 
+	  LongMask=new(dimsizes(AISMask),"integer")
+	  do l = 0,nl-1
+             ls=l*2
+	     LongMask(:,:)=0
+	     LongMask(:,ls:ls+1)=1
+	     BasinMask=where((AISMask.gt.0).and.(LongMask.eq.1),1,0)
+             Longitude_integrated_TS_mon(:,l)=calculate_integrated_timeseries(PRECIPm,LandFrac,LandArea,BasinMask)
+             Longitude_integrated_TS_mon(:,l)=Longitude_integrated_TS_mon(:,l) / 1.e9
+	  end do
+	  save_timeseries(Longitude_integrated_TS_mon,"LongitudeAccumulationTimeSeries_monthly.nc")       
        end if
 
        print("Loading monthly SLP")
@@ -150,6 +132,7 @@ begin
        tmp = in[:]->aice
        nlatn = dimsizes(tmp(0,:,0))
        ICEFRACm(:,nlat-nlatn:nlat-1,:) = tmp
+       
        delete(tmp)
        delete(in)
 
@@ -171,29 +154,36 @@ begin
        UQm=in[:]->UQ
        delete(in)       
 
-       ;load monthly UQ_vert_integral
-       print("Loading monthly UQ_vert_integral")
-       in = addfile("/glade/u/home/jfyke/liwg/AIS_snowfall_analysis/fyke_analysis/jer_data_dir/Vertical_Int_Moisture_Transport_UQ.nc","r")
-       UQ_VERT_INTEGRALm = in->UQ_vert_integral
-       delete(in)  
+       ;;load monthly UQ_vert_integral
+       ;print("Loading monthly UQ_vert_integral")
+       ;in = addfile("/glade/u/home/jfyke/liwg/AIS_snowfall_analysis/fyke_analysis/jer_data_dir/Vertical_Int_Moisture_Transport_UQ.nc","r")
+       ;UQ_VERT_INTEGRALm = in->UQ_vert_integral
+       ;delete(in)  
 
-       ;load monthly VQ_vert_integral
-       print("Loading monthly VQ_vert_integral")
-       in= addfile("/glade/u/home/jfyke/liwg/AIS_snowfall_analysis/fyke_analysis/jer_data_dir/Vertical_Int_Moisture_Transport_VQ.nc","r")
-       VQ_VERT_INTEGRALm = in->VQ_vert_integral
+       ;;load monthly VQ_vert_integral
+       ;print("Loading monthly VQ_vert_integral")
+       ;in= addfile("/glade/u/home/jfyke/liwg/AIS_snowfall_analysis/fyke_analysis/jer_data_dir/Vertical_Int_Moisture_Transport_VQ.nc","r")
+       ;VQ_VERT_INTEGRALm = in->VQ_vert_integral
+       ;delete(in)
+
+       print("Loading Z3")
+       all_files = systemfunc("ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/atm/proc/tseries/monthly/Z3/*.B1850C5CN.*.nc")
+       in = addfiles(all_files,"r")
+       ListSetType (in, "cat")
+       Z=in[:]->Z3
        delete(in)
        
        ;load monthly Z500
-       print("Loading monthly z500")
-       in= addfile("/glade/u/home/jfyke/liwg/AIS_snowfall_analysis/fyke_analysis/jer_data_dir/z500.nc","r")
-       Z500m = in->z500
-       delete(in)
+       ;print("Loading monthly z500")
+       ;in= addfile("/glade/u/home/jfyke/liwg/AIS_snowfall_analysis/fyke_analysis/jer_data_dir/z500.nc","r")
+       ;Z500m = in->z500
+       ;delete(in)
        
        ;load monthly Z850
-       print("Loading monthly z850")
-       in= addfile("/glade/u/home/jfyke/liwg/AIS_snowfall_analysis/fyke_analysis/jer_data_dir/z850.nc","r")
-       Z850m = in->z850
-       delete(in)       
+       ;print("Loading monthly z850")
+       ;in= addfile("/glade/u/home/jfyke/liwg/AIS_snowfall_analysis/fyke_analysis/jer_data_dir/z850.nc","r")
+       ;Z850m = in->z850
+       ;delete(in)
     
     end if
     
@@ -249,12 +239,12 @@ begin
      
      ;plot_AIS_and_basin_accum_PDFs(AIS_integrated_TS,AIS_integrated_TS_avg,\
      ;                              Basin_integrated_TS,Basin_integrated_TS_avg,\
-     ;				   nAISMask)			   
+     ;				   nAISMask)
+     		   
      save_timeseries(Basin_integrated_TS,"BasinAccumulationTimeSeries.nc")
      save_timeseries(AIS_integrated_TS,"AISAccumulationTimeSeries.nc")
      save_timeseries(time,"TimeSeriestime.nc")
      
-
      if (actually_generate_composites) then	
 	do b = 1,nAISMask
 	   bm1=b-1

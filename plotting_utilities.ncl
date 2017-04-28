@@ -49,9 +49,10 @@
 	 significance_plot = gsn_csm_contour(wks,SigField,res)
 	
 	 opt		          = True	
-	 opt@gsnShadeFillMode           = "RasterFill"  ; Turn on raster fill     
+	 opt@gsnShadeFillMode     = "RasterFill"  ; Turn on raster fill     
 	 opt@gsnShadeFillType     = "pattern"
-	 opt@gsnShadeLow	  = 6 
+	 opt@gsnShadeFillScales   = 1.0
+	 opt@gsnShadeLow	  = 17 
 	 significance_plot = gsn_contour_shade(significance_plot, 0.05, 30., opt)  ; shade all areas >95%
          return significance_plot
       end
@@ -123,13 +124,13 @@
 	    return plot
 	 end 
  
-      function plot_vector_scalar_field(u,v,s,wks,isPolar)
+      function plot_vector_scalar_field(u,v,s,wks,isPolar,mpMaxLatF)
 	 begin
 	    u(0,:)=0.0 ; remove long pole vector
 	    v(0,:)=0.0 ; remove long pole vector	          
 	    res = get_default_res()
 	    res@gsnPolar             = "SH"
-	    res@mpMaxLatF            = -45
+	    res@mpMaxLatF            = mpMaxLatF
 	    res@vcGlyphStyle     = "CurlyVector" 
 	    res@vcRefMagnitudeF  = 1.e-8
 	    res@vcRefLengthF     = 1.
