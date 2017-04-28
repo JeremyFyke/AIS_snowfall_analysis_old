@@ -68,14 +68,15 @@ begin
    return field
 end
 ;;;
-function replace_mask_values(field,ReplaceValue)
+function replace_mask_values(fieldin,ReplaceValue)
 local field1d
 begin
-   field1d=ndtooned(field)
-   field1d (ind(ismissing( field1d ))) = ReplaceValue;
-   field=onedtond(field1d,dimsizes(field))
-   delete_VarAtts(field,(/"missing_value","_FillValue","coordinates"/))
-   return field
+   fieldin@_FillValue=ReplaceValue
+   field1d=ndtooned(fieldin)
+   field1d(ind(ismissing( field1d ))) = ReplaceValue;
+   fieldout=onedtond(field1d,dimsizes(fieldin))
+   copy_VarMeta(fieldin,fieldout)
+   return fieldout
 end
 ;;;
 function calculate_integrated_timeseries(Field,LandFrac,LandArea,Mask)

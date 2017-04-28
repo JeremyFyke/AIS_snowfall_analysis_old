@@ -1,6 +1,13 @@
+load "$NCARG_ROOT/lib/ncarg/nclscripts/csm/popRemap.ncl" 
+
 procedure GenerateComposite(CompositeLevel,DataName,BasinNumber,MonthlyData,indt,IsOceanGrid)
    local indt2,i,j
    begin
+      
+      outdir=str_concat((/"output/",CompositeLevel,"/",sprinti("%0.2i", BasinNumber),"/"/))
+      system(str_concat((/"mkdir -p ",outdir/)))
+      fname=str_concat((/outdir,DataName,".nc"/))
+      print("Generating "+fname+"...")
   
       indt2 = new(dimsizes(indt)*12,"integer")
       do i = 0, dimsizes(indt)-1,1	
@@ -12,45 +19,46 @@ procedure GenerateComposite(CompositeLevel,DataName,BasinNumber,MonthlyData,indt
       
       if (rank.eq.3) then
 	CompMonData=MonthlyData(indt2,:,:)
-	CompMonMean=clmMonTLL(CompMonData)
+	CompMonClimo=clmMonTLL(CompMonData)
       else if (rank.eq.4) then
 	CompMonData=MonthlyData(indt2,:,:,:)
-	CompMonMean=clmMonTLLL(CompMonData)      
+	CompMonClimo=clmMonTLLL(CompMonData)      
       else
 	print("Error: input monthly data to compositing procedure not rank [time,lat,lon] or [time,lev,lat,lon]")
       end if
       end if
       
       CompAnn=month_to_annual(CompMonData,1)
-      CompAnnMean=dim_avg_n(CompAnn,0)
+      CompAnnClimo=dim_avg_n(CompAnn,0)
       CompAnnVar =dim_variance_n(CompAnn,0)  
 
       if (IsOceanGrid) then
-      	CompMonMean:=PopLatLon(CompMonMean, "gx1v6","fv0.9x1.25","bilin","da","090309")
+      	CompMonClimo:=PopLatLon(CompMonClimo, "gx1v6","fv0.9x1.25","bilin","da","090309")
 	CompAnn:=PopLatLon(CompAnn, "gx1v6","fv0.9x1.25","bilin","da","090309")
-	CompAnnMean:=PopLatLon(CompAnnMean, "gx1v6","fv0.9x1.25","bilin","da","090309")
+	CompAnnClimo:=PopLatLon(CompAnnClimo, "gx1v6","fv0.9x1.25","bilin","da","090309")
 	CompAnnVar:=PopLatLon(CompAnnVar, "gx1v6","fv0.9x1.25","bilin","da","090309")
       end if      
 
-      fname=str_concat((/"output/",CompositeLevel,"/",sprinti("%0.2i", BasinNumber),"/",DataName,".nc"/))
-      print("Writing "+fname)
+      dm=dimsizes(CompAnn)
+
       system("rm -f "+fname)
       ncdf=addfile(fname ,"c")
       fAtt=True
       fAtt@creation_date = systemfunc ("date")
       fileattdef( ncdf, fAtt ) ; copy file attributes
-      filedimdef(ncdf,"time",-1,True) 
-      ncdf->CompMonData=CompMonData
-      ncdf->CompMonMean=CompMonMean
-      ncdf->CompAnnMean=CompAnnMean
+      filedimdef(ncdf,"time",-1,True)
+      ncdf->CompMonClimo=CompMonClimo
+      ncdf->CompAnnClimo=CompAnnClimo
       ncdf->CompAnnVar=CompAnnVar
-      
+      ncdf->nSamples=dm(0)
    end
     
-function LoadMonthlyData(Files,Var)
+function LoadMonthlyData(Var,Files)
    begin
-      in = addfiles(Files,"r")
-      return in[:]->$Var$
+      in = addfiles(systemfunc(Files),"r")
+      print("Loading "+Var+"...")      
+      arrayOut=in[:]->$Var$
+      return arrayOut
    end
 
 procedure save_timeseries(TS,fname)  

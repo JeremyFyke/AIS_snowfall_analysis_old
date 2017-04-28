@@ -3,13 +3,22 @@ load "/glade/u/home/jfyke/liwg/AIS_snowfall_analysis/fyke_analysis/compositing_w
 
 year2sec=31557600.
 
+PrintOutput       =False
 CompositePrecipCLM=True
+CompositePrecipCAM=True
 CompositeSLP      =True
+CompositePS       =True
+CompositeSST      =True
+CompositeSIC      =True
+CompositeUQVQ     =True
+CompositeEVAP     =True
+CompositeTREFHT   =True
+CompositeZ3       =True
 
 print("Loading masks, lons, lats, areas, etc.")
    in = addfile("/glade/u/home/lenaerts/work/CESM_LE/masks_pop.nc","r")
-   nlat=dimsizes(in->TLAT)
-   nlon=dimsizes(in->TLONG)
+   nlat_POP=dimsizes(in->TLAT)
+   nlon_POP=dimsizes(in->TLONG)
    LandFrac = get_LandFrac()
    AISMask = get_AIS_mask()
    nAISMask = doubletoint(max(AISMask))
@@ -49,22 +58,25 @@ print("Calculating integrated annual PRECIP for time series analysis and composi
       Basin_integrated_TS_5th_percentile(bm1)=statx(24)
       Basin_integrated_TS_95th_percentile(bm1)=statx(25)
       AIS_integrated_TS(:)=AIS_integrated_TS(:)+dble2flt(Basin_integrated_TS(:,bm1))
-      print("Average basin PRECIP="+Basin_integrated_TS_avg(bm1))
-      print("Standard Deviation basin PRECIP="+Basin_integrated_TS_std(bm1))
-      print("5/95 percentile basin PRECIP="+Basin_integrated_TS_5th_percentile(bm1)+"/"+Basin_integrated_TS_95th_percentile(bm1))
-      print("Min basin PRECIP="+statx(2))    
-      print("Max basin PRECIP="+statx(14))	       
+      if (PrintOutput) then
+         print("Average basin PRECIP="+Basin_integrated_TS_avg(bm1))
+         print("Standard Deviation basin PRECIP="+Basin_integrated_TS_std(bm1))
+         print("5/95 percentile basin PRECIP="+Basin_integrated_TS_5th_percentile(bm1)+"/"+Basin_integrated_TS_95th_percentile(bm1))
+         print("Min basin PRECIP="+statx(2))    
+         print("Max basin PRECIP="+statx(14))
+      end if	       
    end do
-   print("Min/Max basin PRECIP="+min(Basin_integrated_TS_avg)+"/"+max(Basin_integrated_TS_avg))
    AIS_integrated_TS_avg=avg(AIS_integrated_TS)
    AIS_integrated_TS_std=stddev(AIS_integrated_TS)
-   print("Average AIS PRECIP="+AIS_integrated_TS_avg)
-   print("Standard Deviation AIS PRECIP="+AIS_integrated_TS_std)	 
-
    AIS_integrated_CV=AIS_integrated_TS_std/AIS_integrated_TS_avg
    Basin_integrated_CV=avg(Basin_integrated_TS_std/Basin_integrated_TS_avg)
-   print("Average AIS CV="+AIS_integrated_CV)
-   print("Basin-average CV="+Basin_integrated_CV)
+   if (PrintOutput) then
+      print("Min/Max basin PRECIP="+min(Basin_integrated_TS_avg)+"/"+max(Basin_integrated_TS_avg))
+      print("Average AIS PRECIP="+AIS_integrated_TS_avg)
+      print("Standard Deviation AIS PRECIP="+AIS_integrated_TS_std)	   
+      print("Average AIS CV="+AIS_integrated_CV)
+      print("Basin-average CV="+Basin_integrated_CV)
+   end if
   ;plot_AIS_and_basin_accum_PDFs(AIS_integrated_TS,AIS_integrated_TS_avg,\
   ;				 Basin_integrated_TS,Basin_integrated_TS_avg,\
   ;				  nAISMask)
@@ -72,43 +84,180 @@ print("Calculating integrated annual PRECIP for time series analysis and composi
    save_timeseries(AIS_integrated_TS,"AISAccumulationTimeSeries.nc")
    save_timeseries(time,"TimeSeriestime.nc")
 
-;   indt_high= NewList("lifo")
-;   indt_low= NewList("lifo")    
-;   do b = 1,nAISMask
-;      bm1=b-1
-;      TS=Basin_integrated_TS(:,bm1)
-;      ListAppend(indt_high,ind(TS.gt.Basin_integrated_TS_95th_percentile(bm1)))
-;      ListAppend(indt_low,ind(TS.lt.Basin_integrated_TS_5th_percentile(bm1)))
-;   end do
+   indt_high= NewList("lifo")
+   indt_low= NewList("lifo")    
+   do b = 1,nAISMask  
+      bm1=b-1
+      TS=Basin_integrated_TS(:,bm1)
+      ListAppend(indt_high,ind(TS.gt.Basin_integrated_TS_95th_percentile(bm1)))
+      ListAppend(indt_low,ind(TS.lt.Basin_integrated_TS_5th_percentile(bm1)))
+   end do
 
-;   if (CompositePrecipCLM) then
-;      print("Compositing CLM Precipitation")
-;      DataNameRAIN="RAIN"
-;      DataPathRAIN="ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/lnd/proc/tseries/monthly/RAIN/*.B1850C5CN.*nc"
-;      DataNameSNOW="SNOW"
-;      DataPathSNOW="ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/lnd/proc/tseries/monthly/SNOW/*.B1850C5CN.*nc"  	
-;      MonthlyData=LoadMonthlyData(DataNameRAIN,DataPathRAIN)+LoadMonthlyData(DataNameSNOW,DataPathSNOW)
-;      MonthlyData=replace_mask_values(MonthlyData,0.)
-;      DataName="PRECIP"
-;      IsOceanGrid=False
-;      do b = 1,nAISMask
-;	GenerateComposite("high",DataName,b,MonthlyData,indt_high(b-1),IsOceanGrid) 
-;	GenerateComposite("low",DataName,b,MonthlyData,indt_low(b-1),IsOceanGrid)   
-;      end do
-;   end if
+   if (CompositePrecipCLM) then
+      print("Compositing CLM Precipitation")
+      DataNameRAIN="RAIN"
+      DataPathRAIN="ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/lnd/proc/tseries/monthly/RAIN/*.B1850C5CN.*nc"
+      DataNameSNOW="SNOW"
+      DataPathSNOW="ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/lnd/proc/tseries/monthly/SNOW/*.B1850C5CN.*nc"
+      RAIN=LoadMonthlyData(DataNameRAIN,DataPathRAIN)
+      SNOW=LoadMonthlyData(DataNameSNOW,DataPathSNOW)
+      MonthlyData:=RAIN+SNOW
+      copy_VarCoords(RAIN,MonthlyData)
+      copy_VarAtts  (RAIN,MonthlyData)
+      copy_VarMeta  (RAIN,MonthlyData)
+      DataName="PRECIP"
+      IsOceanGrid=False
+      do b = 1,nAISMask
+         GenerateComposite("high",DataName,b,MonthlyData,indt_high[b-1],IsOceanGrid) 
+         GenerateComposite("low",DataName,b,MonthlyData,indt_low[b-1],IsOceanGrid)   
+      end do
+   end if
+   
+   if (CompositePrecipCAM) then
+      print("Compositing CLM Precipitation")
+      DataNameConvective="PRECC"
+      DataPathConvective="ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/atm/proc/tseries/monthly/PRECC/*.B1850C5CN.*.nc"
+      DataNameLargeScale="PRECL"
+      DataPathLargeScale="ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/atm/proc/tseries/monthly/PRECL/*.B1850C5CN.*.nc"
+      PRECC=LoadMonthlyData(DataNameConvective,DataPathConvective)
+      PRECL=LoadMonthlyData(DataNameLargeScale,DataPathLargeScale)
+      MonthlyData:=PRECC+PRECL
+      copy_VarCoords(PRECC,MonthlyData)
+      copy_VarAtts  (PRECC,MonthlyData)
+      copy_VarMeta  (PRECC,MonthlyData)
+      DataName="PRECIP_CAM"
+      IsOceanGrid=False
+      do b = 1,nAISMask
+         GenerateComposite("high",DataName,b,MonthlyData,indt_high[b-1],IsOceanGrid) 
+         GenerateComposite("low",DataName,b,MonthlyData,indt_low[b-1],IsOceanGrid)   
+      end do
+   end if   
 
-;   if (CompositeSLP) then
-;      print("Compositing CAM SLP")
-;      DataName="PSL"
-;      DataPath="ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/atm/proc/tseries/monthly/PSL/*.B1850C5CN.*.nc"
-;      MonthlyData=LoadMonthlyData(DataName,DataPath)
-;      IsOceanGrid=False
-;      do b = 1,nAISMask
-;	GenerateComposite("high",DataName,b,MonthlyData,indt_high(b-1),IsOceanGrid) 
-;	GenerateComposite("low",DataName,b,MonthlyData,indt_low(b-1),IsOceanGrid)   
-;      end do	
-;   end if
+   if (CompositeSLP) then
+      print("Compositing CAM PSL")
+      DataName="PSL"
+      DataPath="ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/atm/proc/tseries/monthly/PSL/*.B1850C5CN.*.nc"
+      MonthlyData:=LoadMonthlyData(DataName,DataPath)
+      IsOceanGrid=False
+      do b = 1,nAISMask
+         GenerateComposite("high",DataName,b,MonthlyData,indt_high[b-1],IsOceanGrid) 
+         GenerateComposite("low",DataName,b,MonthlyData,indt_low[b-1],IsOceanGrid)   
+      end do   
+   end if
+   
+   if (CompositePS) then
+      print("Compositing CAM PS")
+      DataName="PS"
+      DataPath="ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/atm/proc/tseries/monthly/PS/*.B1850C5CN.*.nc"
+      MonthlyData:=LoadMonthlyData(DataName,DataPath)
+      IsOceanGrid=False
+      do b = 1,nAISMask
+         GenerateComposite("high",DataName,b,MonthlyData,indt_high[b-1],IsOceanGrid) 
+         GenerateComposite("low",DataName,b,MonthlyData,indt_low[b-1],IsOceanGrid)   
+      end do   
+   end if   
 
+   if (CompositeSST) then
+      print("Compositing POP Temperature (SST)")
+      DataName="SST"
+      DataPath="ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/ocn/proc/tseries/monthly/SST/*.B1850C5CN.*nc"
+      MonthlyData:=LoadMonthlyData(DataName,DataPath)
+      IsOceanGrid=True
+      do b = 1,nAISMask
+         GenerateComposite("high",DataName,b,MonthlyData,indt_high[b-1],IsOceanGrid) 
+         GenerateComposite("low",DataName,b,MonthlyData,indt_low[b-1],IsOceanGrid)   
+      end do   
+   end if
+   
+   if (CompositeSIC) then
+      print("Compositing CICE Sea ice concentration (aice)")
+      MonthlyData=new((/dsSH(0),nlat_POP,nlon_POP/),"float")      
+      DataNameSH="aice"
+      DataPathSH="ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/ice/proc/tseries/monthly/aice/*.B1850C5CN.*sh*nc"
+      DataPathNH="ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/ice/proc/tseries/monthly/aice/*.B1850C5CN.*nh*nc"      
+      MonthlyDataSH:=LoadMonthlyData(DataNameSH,DataPath)
+      ds=dimsizes(MonthlyDataSH)
+      nlats=dsSH(1)
+      MonthlyData(:,0:nlats-1,:)=MonthlyDataSH
+      MonthlyDataNH:=LoadMonthlyData(DataNameNH,DataPath)
+      ds=dimsizes(MonthlyDataNH)
+      nlatn=dsNH(1)
+      MonthlyData(:,nlat_POP-nlatn:nlat_POP-1,:)=MonthlyDataNH
+      printVarSummary(MonthlyDataSH)
+      printVarSummary(MonthlyDataNH)           
+      printVarSummary(MonthlyData)
+      IsOceanGrid=True
+      do b = 1,nAISMask
+         GenerateComposite("high",DataName,b,MonthlyData,indt_high[b-1],IsOceanGrid) 
+         GenerateComposite("low",DataName,b,MonthlyData,indt_low[b-1],IsOceanGrid)   
+      end do   
+   end if    
 
+   if (CompositeUQVQ) then
+      print("Compositing CAM UQ")
+      DataName="UQ"
+      DataPath="ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/atm/proc/tseries/monthly/UQ/*.B1850C5CN.*.nc"
+      MonthlyData:=LoadMonthlyData(DataName,DataPath)
+      IsOceanGrid=False
+      do b = 1,nAISMask
+         GenerateComposite("high",DataName,b,MonthlyData,indt_high[b-1],IsOceanGrid) 
+         GenerateComposite("low",DataName,b,MonthlyData,indt_low[b-1],IsOceanGrid)   
+      end do
+      print("Compositing CAM VQ")
+      DataName="UQ"
+      DataPath="ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/atm/proc/tseries/monthly/VQ/*.B1850C5CN.*.nc"
+      MonthlyData:=LoadMonthlyData(DataName,DataPath)
+      IsOceanGrid=False
+      do b = 1,nAISMask
+         GenerateComposite("high",DataName,b,MonthlyData,indt_high[b-1],IsOceanGrid) 
+         GenerateComposite("low",DataName,b,MonthlyData,indt_low[b-1],IsOceanGrid)         
+      end do
+   end if
+   
+   if (CompositeEVAP) then
+      print("Compositing CAM Evaporation (QFLX)")
+      DataName="QFLX"
+      DataPath="ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/atm/proc/tseries/monthly/QFLX/*.B1850C5CN.*nc"
+      MonthlyData:=LoadMonthlyData(DataName,DataPath)
+      IsOceanGrid=False
+      do b = 1,nAISMask
+         GenerateComposite("high",DataName,b,MonthlyData,indt_high[b-1],IsOceanGrid) 
+         GenerateComposite("low",DataName,b,MonthlyData,indt_low[b-1],IsOceanGrid)   
+      end do   
+   end if   
 
+   if (CompositeTREFHT) then
+      print("Compositing CAM near surface air temperature (TREFHT)")
+      DataName="TREFHT"
+      DataPath="ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/atm/proc/tseries/monthly/TREFHT/*.B1850C5CN.*.nc"
+      MonthlyData:=LoadMonthlyData(DataName,DataPath)
+      IsOceanGrid=False
+      do b = 1,nAISMask
+         GenerateComposite("high",DataName,b,MonthlyData,indt_high[b-1],IsOceanGrid) 
+         GenerateComposite("low",DataName,b,MonthlyData,indt_low[b-1],IsOceanGrid)   
+      end do   
+   end if   
 
+   if (CompositeZ3) then
+      print("Compositing CAM geopotential height (Z3)")
+      DataName="Z3"
+      DataPath="ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/atm/proc/tseries/monthly/Z3/*.B1850C5CN.*.nc"
+      MonthlyData:=LoadMonthlyData(DataName,DataPath)
+      IsOceanGrid=False
+      do b = 1,nAISMask
+         GenerateComposite("high",DataName,b,MonthlyData,indt_high[b-1],IsOceanGrid) 
+         GenerateComposite("low",DataName,b,MonthlyData,indt_low[b-1],IsOceanGrid)   
+      end do
+   end if
+
+   ;if () then
+   ;   print("")
+   ;   DataName=""
+   ;   DataPath=""
+   ;   MonthlyData:=LoadMonthlyData(DataName,DataPath)
+   ;   IsOceanGrid=
+   ;   do b = 1,nAISMask
+   ;      GenerateComposite("high",DataName,b,MonthlyData,indt_high[b-1],IsOceanGrid) 
+   ;      GenerateComposite("low",DataName,b,MonthlyData,indt_low[b-1],IsOceanGrid)   
+   ;   end do   
+   ;end if
