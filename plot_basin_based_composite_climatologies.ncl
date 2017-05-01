@@ -284,79 +284,50 @@ begin
       bm1=b-1
       
       ;;;Load basin-specific composite data
-      flow = addfile(str_concat((/SD,"compositing_work/output/low/Basin",tostring(b),"_ssticetemp_fv0.9x1.25.nc"/)),"r")
-      fmean = addfile(str_concat((/SD,"compositing_work/output/mean/Basin",tostring(b),"_ssticetemp_fv0.9x1.25.nc"/)),"r") 
-      fhigh = addfile(str_concat((/SD,"compositing_work/output/high/Basin",tostring(b),"_ssticetemp_fv0.9x1.25.nc"/)),"r")
-      SIC_mean_low =  flow->annual_climo_ICEFRAC
-      SIC_mean_high = fhigh->annual_climo_ICEFRAC
-      SIC_var_low = flow->annual_var_ICEFRAC
-      SIC_var_high = fhigh->annual_var_ICEFRAC
-      SLP_mean_low =  flow->annual_climo_SLP
-      SLP_mean_high = fhigh->annual_climo_SLP
-      SLP_var_low = flow->annual_var_SLP
-      SLP_var_high = fhigh->annual_var_SLP
-      nSamples_low = flow->nSamples
-      nSamples_high = fhigh->nSamples
-      lat=flow->lat
-      lon=flow->lon      
+      out:=load_composites(SD,"aice",b)
+      SIC_mean_low=out[0]
+      SIC_mean_high=out[1]
+      SIC_diff=out[2]
+      SIC_alpha=out[3]
       
-      ;Calculate SIC difference
-      SIC_diff=SIC_mean_high-SIC_mean_low  
-      SIC_diff=add_lat_lon_arrays(SIC_diff,lat,lon)     
-      ;Calculate significance of difference
-      SIC_alpha = ttest(SIC_mean_low,SIC_var_low,nSamples_low,SIC_mean_high,SIC_var_high,nSamples_high, False, False)
-      SIC_alpha = add_lat_lon_arrays(SIC_alpha,lat,lon)
-      ;Calculate SLP diff
-      SLP_diff= SLP_mean_high-SLP_mean_low 
-      SLP_diff= add_lat_lon_arrays(SLP_diff,lat,lon)
-      ;Calculate significance of difference
-      SLP_alpha = ttest(SLP_mean_low,SLP_var_low,nSamples_low,SLP_mean_high,SLP_var_high,nSamples_high, False, False)
-      SLP_alpha = add_lat_lon_arrays(SLP_alpha,lat,lon)   
-      ;Calculate moisture transport diff      
-      UQ_VERT_INTEGRAL_mean_low =  flow->annual_climo_UQ_VERT_INTEGRAL
-      UQ_VERT_INTEGRAL_mean_high = fhigh->annual_climo_UQ_VERT_INTEGRAL
-      UQ_VERT_INTEGRAL_var_low = flow->annual_var_UQ_VERT_INTEGRAL
-      UQ_VERT_INTEGRAL_var_high = fhigh->annual_var_UQ_VERT_INTEGRAL
-      VQ_VERT_INTEGRAL_mean_low =  flow->annual_climo_VQ_VERT_INTEGRAL
-      VQ_VERT_INTEGRAL_mean_high = fhigh->annual_climo_VQ_VERT_INTEGRAL
-      VQ_VERT_INTEGRAL_var_low = flow->annual_var_VQ_VERT_INTEGRAL
-      VQ_VERT_INTEGRAL_var_high = fhigh->annual_var_VQ_VERT_INTEGRAL      
-      UQ_VERT_INTEGRAL_diff=UQ_VERT_INTEGRAL_mean_high - UQ_VERT_INTEGRAL_mean_low
-      VQ_VERT_INTEGRAL_diff=VQ_VERT_INTEGRAL_mean_high - VQ_VERT_INTEGRAL_mean_low
-      UQ_VERT_INTEGRAL_diff=UQ_VERT_INTEGRAL_diff/doubletofloat(Area)
-      VQ_VERT_INTEGRAL_diff=VQ_VERT_INTEGRAL_diff/doubletofloat(Area)
-      UQ_VERT_INTEGRAL_diff=add_lat_lon_arrays(UQ_VERT_INTEGRAL_diff,lat,lon) 
-      VQ_VERT_INTEGRAL_diff=add_lat_lon_arrays(VQ_VERT_INTEGRAL_diff,lat,lon)
-      UQ_VERT_INTEGRAL_alpha=ttest(UQ_VERT_INTEGRAL_mean_low,UQ_VERT_INTEGRAL_var_low,nSamples_low,\
-                       UQ_VERT_INTEGRAL_mean_high,UQ_VERT_INTEGRAL_var_high,nSamples_high,\
-		       False, False)
-      UQ_VERT_INTEGRAL_alpha=add_lat_lon_arrays(UQ_VERT_INTEGRAL_alpha,lat,lon)           
-      VQ_VERT_INTEGRAL_alpha=ttest(VQ_VERT_INTEGRAL_mean_low,VQ_VERT_INTEGRAL_var_low,nSamples_low,\
-                       VQ_VERT_INTEGRAL_mean_high,VQ_VERT_INTEGRAL_var_high,nSamples_high,\
-		       False, False)		       
-      VQ_VERT_INTEGRAL_alpha=add_lat_lon_arrays(VQ_VERT_INTEGRAL_alpha,lat,lon) 
-           
-      ;Calculate integrated evaporation diff
-      EVAP_diff=fhigh->annual_climo_EVAP - flow->annual_climo_EVAP
-      EVAP_diff=-EVAP_diff ; so increased evaporation is positive
-      EVAP_diff=EVAP_diff*doubletofloat(Area)
-      EVAP_diff= add_lat_lon_arrays(EVAP_diff,lat,lon)
-      SST_diff=fhigh->annual_climo_SST - flow->annual_climo_SST
-      SST_diff= add_lat_lon_arrays(SST_diff,lat,lon)
-      Z500_mean_low =  flow->annual_climo_Z500
-      Z500_mean_high = fhigh->annual_climo_Z500
-      Z500Z3_low = dim_rmvmean_Wrap(Z500_mean_low)
-      Z500Z3_high = dim_rmvmean_Wrap(Z500_mean_high)
-      dZ500Z3 = Z500Z3_high - Z500Z3_low
-      dZ500Z3= add_lat_lon_arrays(dZ500Z3,lat,lon)      
-      Z500_var_low = flow->annual_var_Z500
-      Z500_var_high = fhigh->annual_var_Z500      
-      Z500_diff = Z500_mean_high-Z500_mean_low
-      Z500_diff= add_lat_lon_arrays(Z500_diff,lat,lon)
-      Z500_alpha=ttest(Z500_mean_low,Z500_var_low,nSamples_low,\
-                       Z500_mean_high,Z500_var_high,nSamples_high,\
-		       False, False)
-      Z500_alpha=add_lat_lon_arrays(Z500_alpha,lat,lon)		       
+      out:=load_composites(SD,"PSL",b)
+      SLP_mean_low=out[0]
+      SLP_mean_high=out[1]
+      SLP_diff=out[2]
+      SLP_alpha=out[3]      
+      
+      out:=load_composites(SD,"UQ",b)
+      UQ_mean_low=out[0]
+      UQ_mean_high=out[1]
+      UQ_diff=out[2]
+      UQ_alpha=out[3]        
+      
+      out:=load_composites(SD,"VQ",b)
+      VQ_mean_low=out[0]
+      VQ_mean_high=out[1]
+      VQ_diff=out[2]
+      VQ_alpha=out[3]
+      
+      out:=load_composites(SD,"QFLX",b)
+      EVAP_mean_low=out[0]
+      EVAP_mean_high=out[1]
+      EVAP_diff=out[2]
+      EVAP_alpha=out[3]
+      
+      out:=load_composites(SD,"SST",b)
+      SST_mean_low=out[0]
+      SST_mean_high=out[1]
+      SST_diff=out[2]
+      SST_alpha=out[3]    
+                  
+      out:=load_composites(SD,"V3",b)
+      V3_mean_low=out[0]
+      V3_mean_high=out[1]
+      V3_diff=out[2]
+      V3_alpha=out[3]        
+      exit
+
+      ;Need to calculate Z500 and vertical integral of UQ/VQ.	       
       
       rc=regline_stats(ndtooned(Z500_diff),ndtooned(SLP_diff))
       print("***Relationship between Z500 and SLP variability for basin "+b+"***")

@@ -355,16 +355,40 @@ function calculate_interbasin_correlations(BasinAccum,nAISMask)
 
 function make_correlation_mask(AISMask,nAISMask,Xcor,time,bm1)
    begin
-   AISBinaryMask=where(AISMask.eq.0,0,1)   
-   CorrMask=new(dimsizes(AISMask),"double")
-   CorrMask(:,:)=0.0 
-   do bc=1,nAISMask ;loop over all basins, color in based on correlation at that basin
-      bcm1=bc-1
-      CorrMask=where(AISMask.eq.bc,Xcor(bm1,bcm1),CorrMask)
-   end do
-   CorrMask=mask(CorrMask,AISBinaryMask,1)     
-   RtestMask=rtest(CorrMask,dimsizes(time),0)
-   RtestMask=mask(RtestMask,AISBinaryMask,1)
-   return([/CorrMask,RtestMask/])
+      AISBinaryMask=where(AISMask.eq.0,0,1)   
+      CorrMask=new(dimsizes(AISMask),"double")
+      CorrMask(:,:)=0.0 
+      do bc=1,nAISMask ;loop over all basins, color in based on correlation at that basin
+	 bcm1=bc-1
+	 CorrMask=where(AISMask.eq.bc,Xcor(bm1,bcm1),CorrMask)
+      end do
+      CorrMask=mask(CorrMask,AISBinaryMask,1)     
+      RtestMask=rtest(CorrMask,dimsizes(time),0)
+      RtestMask=mask(RtestMask,AISBinaryMask,1)
+      return([/CorrMask,RtestMask/])
    end
+   
+   function load_composites(SD,Vname,b)
+   begin
+      in:=addfile(str_concat((/SD,"compositing_work/output/low/",sprinti("%0.2i",b),"/",Vname,".nc"/)),"r")
+      Var_mean_low=in->CompAnnClimo
+      in:=addfile(str_concat((/SD,"compositing_work/output/high/",sprinti("%0.2i",b),"/",Vname,".nc"/)),"r")
+      Var_mean_high=in->CompAnnClimo
+      in:=addfile(str_concat((/SD,"compositing_work/output/low/",sprinti("%0.2i",b),"/",Vname,".nc"/)),"r")
+      Var_var_low=in->CompAnnVar
+      in:=addfile(str_concat((/SD,"compositing_work/output/high/",sprinti("%0.2i",b),"/",Vname,".nc"/)),"r")
+      Var_var_high=in->CompAnnVar
+      nSamples_low = in->nSamples
+      nSamples_high = in->nSamples
+      lat=in->lat
+      lon=in->lon
+      Var_var_high=in->CompAnnVar
+      Var_diff=Var_mean_high-Var_mean_low
+      Var_diff=add_lat_lon_arrays(Var_diff,lat,lon)
+      Var_alpha=ttest(Var_mean_low,Var_var_low,nSamples_low,Var_mean_high,Var_var_high,nSamples_high, False, False)
+      Var_alpha=add_lat_lon_arrays(Var_alpha,lat,lon)
+      return([/Var_mean_low,Var_mean_high,Var_diff,Var_alpha/])
+   end
+      
+   
    

@@ -4,20 +4,20 @@ load "/glade/u/home/jfyke/liwg/AIS_snowfall_analysis/fyke_analysis/compositing_w
 year2sec=31557600.
 
 PrintOutput       =False
-CompositePrecipCLM=True
-CompositePrecipCAM=True
-CompositeSLP      =True
-CompositePS       =True
-CompositeSST      =True
-CompositeSIC      =True
+CompositePrecipCLM=False
+CompositePrecipCAM=False
+CompositeSLP      =False
+CompositePS       =False
+CompositeSST      =False
+CompositeSIC      =False
 CompositeUQVQ     =True
-CompositeEVAP     =True
-CompositeTREFHT   =True
-CompositeZ3       =True
+CompositeEVAP     =False
+CompositeTREFHT   =False
+CompositeZ3       =False
 
 print("Loading masks, lons, lats, areas, etc.")
    in = addfile("/glade/u/home/lenaerts/work/CESM_LE/masks_pop.nc","r")
-   nlat_POP=dimsizes(in->TLAT)
+   ds_POP=dimsizes(in->TLAT)
    nlon_POP=dimsizes(in->TLONG)
    LandFrac = get_LandFrac()
    AISMask = get_AIS_mask()
@@ -111,6 +111,7 @@ print("Calculating integrated annual PRECIP for time series analysis and composi
          GenerateComposite("high",DataName,b,MonthlyData,indt_high[b-1],IsOceanGrid) 
          GenerateComposite("low",DataName,b,MonthlyData,indt_low[b-1],IsOceanGrid)   
       end do
+      delete([/RAIN,SNOW/])
    end if
    
    if (CompositePrecipCAM) then
@@ -170,19 +171,21 @@ print("Calculating integrated annual PRECIP for time series analysis and composi
    end if
    
    if (CompositeSIC) then
-      print("Compositing CICE Sea ice concentration (aice)")
-      MonthlyData=new((/dsSH(0),nlat_POP,nlon_POP/),"float")      
-      DataNameSH="aice"
+      print("Compositing CICE Sea ice concentration (aice)")     
+      DataName="aice"
       DataPathSH="ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/ice/proc/tseries/monthly/aice/*.B1850C5CN.*sh*nc"
       DataPathNH="ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/ice/proc/tseries/monthly/aice/*.B1850C5CN.*nh*nc"      
-      MonthlyDataSH:=LoadMonthlyData(DataNameSH,DataPath)
-      ds=dimsizes(MonthlyDataSH)
+      MonthlyDataSH:=LoadMonthlyData(DataName,DataPathSH)
+      dsSH=dimsizes(MonthlyDataSH)
+      nt=dsSH(0) 
+      
+      MonthlyData:=new((/nt,ds_POP(0),ds_POP(1)/),"float") 
       nlats=dsSH(1)
       MonthlyData(:,0:nlats-1,:)=MonthlyDataSH
-      MonthlyDataNH:=LoadMonthlyData(DataNameNH,DataPath)
-      ds=dimsizes(MonthlyDataNH)
+      MonthlyDataNH:=LoadMonthlyData(DataName,DataPathNH)
+      dsNH=dimsizes(MonthlyDataNH)
       nlatn=dsNH(1)
-      MonthlyData(:,nlat_POP-nlatn:nlat_POP-1,:)=MonthlyDataNH
+      MonthlyData(:,ds_POP(0)-nlatn:ds_POP(0)-1,:)=MonthlyDataNH
       printVarSummary(MonthlyDataSH)
       printVarSummary(MonthlyDataNH)           
       printVarSummary(MonthlyData)
@@ -190,30 +193,10 @@ print("Calculating integrated annual PRECIP for time series analysis and composi
       do b = 1,nAISMask
          GenerateComposite("high",DataName,b,MonthlyData,indt_high[b-1],IsOceanGrid) 
          GenerateComposite("low",DataName,b,MonthlyData,indt_low[b-1],IsOceanGrid)   
-      end do   
+      end do
+      delete([/MonthlyDataSH,MonthlyDataNH/])
    end if    
 
-   if (CompositeUQVQ) then
-      print("Compositing CAM UQ")
-      DataName="UQ"
-      DataPath="ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/atm/proc/tseries/monthly/UQ/*.B1850C5CN.*.nc"
-      MonthlyData:=LoadMonthlyData(DataName,DataPath)
-      IsOceanGrid=False
-      do b = 1,nAISMask
-         GenerateComposite("high",DataName,b,MonthlyData,indt_high[b-1],IsOceanGrid) 
-         GenerateComposite("low",DataName,b,MonthlyData,indt_low[b-1],IsOceanGrid)   
-      end do
-      print("Compositing CAM VQ")
-      DataName="UQ"
-      DataPath="ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/atm/proc/tseries/monthly/VQ/*.B1850C5CN.*.nc"
-      MonthlyData:=LoadMonthlyData(DataName,DataPath)
-      IsOceanGrid=False
-      do b = 1,nAISMask
-         GenerateComposite("high",DataName,b,MonthlyData,indt_high[b-1],IsOceanGrid) 
-         GenerateComposite("low",DataName,b,MonthlyData,indt_low[b-1],IsOceanGrid)         
-      end do
-   end if
-   
    if (CompositeEVAP) then
       print("Compositing CAM Evaporation (QFLX)")
       DataName="QFLX"
@@ -236,7 +219,28 @@ print("Calculating integrated annual PRECIP for time series analysis and composi
          GenerateComposite("high",DataName,b,MonthlyData,indt_high[b-1],IsOceanGrid) 
          GenerateComposite("low",DataName,b,MonthlyData,indt_low[b-1],IsOceanGrid)   
       end do   
-   end if   
+   end if
+   
+   if (CompositeUQVQ) then
+      print("Compositing CAM UQ")
+      DataName="UQ"
+      DataPath="ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/atm/proc/tseries/monthly/UQ/*.B1850C5CN.*.nc"
+      MonthlyData:=LoadMonthlyData(DataName,DataPath)
+      IsOceanGrid=False
+      do b = 1,nAISMask
+         GenerateComposite("high",DataName,b,MonthlyData,indt_high[b-1],IsOceanGrid) 
+         GenerateComposite("low",DataName,b,MonthlyData,indt_low[b-1],IsOceanGrid)   
+      end do
+      print("Compositing CAM VQ")
+      DataName="VQ"
+      DataPath="ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/atm/proc/tseries/monthly/VQ/*.B1850C5CN.*.nc"
+      MonthlyData:=LoadMonthlyData(DataName,DataPath)
+      IsOceanGrid=False
+      do b = 1,nAISMask
+         GenerateComposite("high",DataName,b,MonthlyData,indt_high[b-1],IsOceanGrid) 
+         GenerateComposite("low",DataName,b,MonthlyData,indt_low[b-1],IsOceanGrid)         
+      end do
+   end if
 
    if (CompositeZ3) then
       print("Compositing CAM geopotential height (Z3)")
