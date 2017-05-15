@@ -182,11 +182,11 @@
 	    return accum_plot
 	 end
 	 
-      function plot_SIC(SIC_diff,wks)
+      function plot_SIC(SIC_diff,wks,mpMaxLatF)
          begin
 	    res = get_default_res()   
 	    res@gsnPolar             = "SH"
-	    res@mpMaxLatF            = -60
+	    res@mpMaxLatF            = mpMaxLatF
 	    res@cnFillOn             = True 
 	    res@cnLinesOn           = True  
 	    res@lbLabelAutoStride    = True
@@ -206,8 +206,12 @@
 	    res@mpOutlineOn = True
 	    res@mpGeophysicalLineThicknessF = 6
 	    res@cnLineThicknessF = 12
-	    dSLP_plot = gsn_csm_contour(wks,SLP_diff,res)  ; create the plot
-	    dSLP_plot = ColorNegDashZeroPosContour(dSLP_plot,"blue","grey","red")	    
+	    res@cnMinLevelValF       = -60.              ; set min contour level
+	    res@cnMaxLevelValF       =  60.              ; set max contour level
+	    res@cnLevelSpacingF      =  5.             ; set contour spacing
+	    res@cnLineLabelsOn       =  False	    
+	    dSLP_plot = gsn_csm_contour(wks,SLP_diff,res)  ; create the plot	    
+	    dSLP_plot = ColorNegDashZeroPosContour(dSLP_plot,"blue","green","red")	    	    
 	    return dSLP_plot
 	 end
 	 

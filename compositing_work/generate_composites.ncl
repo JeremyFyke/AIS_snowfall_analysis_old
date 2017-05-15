@@ -9,8 +9,9 @@ CompositePrecipCAM=False
 CompositeSLP      =False
 CompositePS       =False
 CompositeSST      =False
+CompositeTEMP     =False
 CompositeSIC      =False
-CompositeUQVQ     =True
+CompositeUQVQ     =False
 CompositeEVAP     =False
 CompositeTREFHT   =False
 CompositeZ3       =False
@@ -159,7 +160,7 @@ print("Calculating integrated annual PRECIP for time series analysis and composi
    end if   
 
    if (CompositeSST) then
-      print("Compositing POP Temperature (SST)")
+      print("Compositing POP SSTs (SST)")
       DataName="SST"
       DataPath="ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/ocn/proc/tseries/monthly/SST/*.B1850C5CN.*nc"
       MonthlyData:=LoadMonthlyData(DataName,DataPath)
@@ -169,6 +170,18 @@ print("Calculating integrated annual PRECIP for time series analysis and composi
          GenerateComposite("low",DataName,b,MonthlyData,indt_low[b-1],IsOceanGrid)   
       end do   
    end if
+   
+   if (CompositeTEMP) then
+      print("Compositing POP Temperature (TEMP)")
+      DataName="TEMP"
+      DataPath="ls /glade/p/cesmLE/CESM-CAM5-BGC-LE/ocn/proc/tseries/monthly/TEMP/*.B1850C5CN.*nc"
+      MonthlyData:=LoadMonthlyData(DataName,DataPath)
+      IsOceanGrid=True
+      do b = 1,nAISMask
+         GenerateComposite("high",DataName,b,MonthlyData,indt_high[b-1],IsOceanGrid) 
+         GenerateComposite("low",DataName,b,MonthlyData,indt_low[b-1],IsOceanGrid)   
+      end do   
+   end if   
    
    if (CompositeSIC) then
       print("Compositing CICE Sea ice concentration (aice)")     

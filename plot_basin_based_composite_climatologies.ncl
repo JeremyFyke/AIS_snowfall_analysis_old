@@ -4,14 +4,15 @@ load "plotting_utilities.ncl"
 
 begin   
 
+   loadUQVQ=False
    plot_AIS_SMB_spatial_fields=0
    plot_AISMask=0
    plot_dSIC=0
-   plot_dSIC_plus_dZ500=0
+   plot_dSIC_plus_dZ500=1
    plot_dSST_global=0
    plot_dSLP_global=0
    plot_dMoisture_plus_SIC=0
-   plot_dMoisture_dZ500_transport=1
+   plot_dMoisture_dZ500_transport=0
    plot_non_annular_difference=0
    plot_dMoisture_plus_basin_correlation=0
    plot_evap_to_transport_ratio=0
@@ -36,12 +37,19 @@ begin
    LandFrac = get_LandFrac()
    LandArea = get_LandArea() 
    SD="./"
-   
-   in = addfile("/glade/u/home/lenaerts/work/CESM_LE/PRECIP_B1850C5CN_400-2200.nc","r")
+
+   ;Load CAM grid data
+   in:=addfile("jer_data_dir/CAM_base_data.nc","r")
+   P0=in->P0
+   hyam=in->hyam
+   hybm=in->hybm
+   lev=in->lev
    lat=in->lat
-   lon=in->lon    
-   ZwallyBasinPolygonData=readAsciiTable("AIS_basin_masks/Ant_Full_DrainageSystem_Polygons.txt",3,"float",7)  
+   lon=in->lon 
    
+   ;Load ice drainage boundary polygons
+   ZwallyBasinPolygonData=readAsciiTable("AIS_basin_masks/Ant_Full_DrainageSystem_Polygons.txt",3,"float",7)    
+       
    ;;;Load RACMO AIS data
    infile = addfile("AIS_basin_masks/AIS_Full_basins_Zwally_ANT27grid.nc","r")
    AISMask_RACMO=infile->Zwallybasins
@@ -97,14 +105,14 @@ begin
 
       PRECIP_annual=SNOW_annual+RAIN_annual
       PRECIP_climatology=mask(dim_avg_n(PRECIP_annual,0),AISMaskBinary,1)
-      PRECIP_climatology=add_lat_lon_arrays(PRECIP_climatology,lat,lon)
+      PRECIP_climatology=add_lev_lat_lon_arrays(PRECIP_climatology,lev,lat,lon)
       PRECIP_variability=mask(dim_stddev_n(PRECIP_annual,0),AISMaskBinary,1)
-      PRECIP_variability=add_lat_lon_arrays(PRECIP_variability,lat,lon)
+      PRECIP_variability=add_lev_lat_lon_arrays(PRECIP_variability,lev,lat,lon)
       PRECIP_AIS_integrated=RAIN_AIS_integrated+SNOW_AIS_integrated
       PRECIP_AIS_integrated_avg=avg(PRECIP_AIS_integrated)
       PRECIP_AIS_integrated_std=stddev(PRECIP_AIS_integrated)
       PRECIP_CV=PRECIP_variability/PRECIP_climatology
-      PRECIP_CV=add_lat_lon_arrays(PRECIP_CV,lat,lon)
+      PRECIP_CV=add_lev_lat_lon_arrays(PRECIP_CV,lev,lat,lon)
       
       print("CV averaged from point-wise CVs="+wgt_areaave2(PRECIP_CV,Area,0))
       print("Climatological AIS integrated mean snow:")
@@ -153,8 +161,8 @@ begin
    psa1_eof=-(in->psa1_sst_regression_ann) ;
    lat_CVDP=in->lat
    lon_CVDP=in->lon
-   sam_eof=add_lat_lon_arrays(sam_eof,lat_CVDP,lon_CVDP)
-   psa1_eof=add_lat_lon_arrays(psa1_eof,lat_CVDP,lon_CVDP)
+   sam_eof=add_lev_lat_lon_arrays(sam_eof,lev,lat_CVDP,lon_CVDP)
+   psa1_eof=add_lev_lat_lon_arrays(psa1_eof,lev,lat_CVDP,lon_CVDP)
 
    if (plot_dSLP_global.eq.1) then
       ;plot projection of SAM on SLP
@@ -284,86 +292,115 @@ begin
       bm1=b-1
       
       ;;;Load basin-specific composite data
-      out:=load_composites(SD,"aice",b)
+      
+      out:=load_composites(SD,"aice",b,0.01,lev,lat,lon)
       SIC_mean_low=out[0]
       SIC_mean_high=out[1]
-      SIC_diff=out[2]
+      SIC_diff=out[2] 
       SIC_alpha=out[3]
       
-      out:=load_composites(SD,"PSL",b)
+      out:=load_composites(SD,"PSL",b,1.,lev,lat,lon)
       SLP_mean_low=out[0]
       SLP_mean_high=out[1]
       SLP_diff=out[2]
       SLP_alpha=out[3]      
       
-      out:=load_composites(SD,"UQ",b)
-      UQ_mean_low=out[0]
-      UQ_mean_high=out[1]
-      UQ_diff=out[2]
-      UQ_alpha=out[3]        
+      if (loadUQVQ) then
+	 out:=load_composites(SD,"UQ",b,1.,lev,lat,lon)
+	 UQ_mean_low=out[0]
+	 UQ_mean_high=out[1]
+	 UQ_diff=out[2]
+	 UQ_alpha=out[3]        
+
+	 out:=load_composites(SD,"VQ",b,1.,lev,lat,lon)
+	 VQ_mean_low=out[0]
+	 VQ_mean_high=out[1]
+	 VQ_diff=out[2]
+	 VQ_alpha=out[3]      
+	 ;vertical integral of UQ/VQ.
+	 ds:=dimsizes(VQ_mean_high); lev, lat, lon
+	 prei=new(ds,"double")
+	 do ilat=0,ds(1)-1
+            do ilon=0,ds(2)-1
+	       prei(:,ilat,ilon)=hyam(:)*P0+hybm(:)*PS_mean_mean(ilat,ilon) ;Pa
+	    end do
+	 end do
+	 Paormb=1 ;0==mb,1==Pa
+	 SumorAvg=0 ;0==sum; 1==avg
+	 UQ_vert_int_high=wgt_vert_avg_beta(prei,UQ_mean_high,PS_mean_high,Paormb,SumorAvg)
+	 VQ_vert_int_high=wgt_vert_avg_beta(prei,VQ_mean_high,PS_mean_high,Paormb,SumorAvg)
+	 UQ_vert_int_low=wgt_vert_avg_beta(prei,UQ_mean_low,PS_mean_low,Paormb,SumorAvg)
+	 VQ_vert_int_low=wgt_vert_avg_beta(prei,VQ_mean_low,PS_mean_low,Paormb,SumorAvg)
+	 UQ_VERT_INTEGRAL_diff=add_lev_lat_lon_arrays((UQ_vert_int_high-UQ_vert_int_low),lev,lat,lon)
+	 VQ_VERT_INTEGRAL_diff=add_lev_lat_lon_arrays((VQ_vert_int_high-VQ_vert_int_low),lev,lat,lon)
+      end if
       
-      out:=load_composites(SD,"VQ",b)
-      VQ_mean_low=out[0]
-      VQ_mean_high=out[1]
-      VQ_diff=out[2]
-      VQ_alpha=out[3]
-      
-      out:=load_composites(SD,"QFLX",b)
+      out:=load_composites(SD,"QFLX",b,1.,lev,lat,lon)
       EVAP_mean_low=out[0]
       EVAP_mean_high=out[1]
       EVAP_diff=out[2]
       EVAP_alpha=out[3]
       
-      out:=load_composites(SD,"SST",b)
+      out:=load_composites(SD,"SST",b,1.,lev,lat,lon)
       SST_mean_low=out[0]
       SST_mean_high=out[1]
       SST_diff=out[2]
       SST_alpha=out[3]    
                   
-      out:=load_composites(SD,"V3",b)
-      V3_mean_low=out[0]
-      V3_mean_high=out[1]
-      V3_diff=out[2]
-      V3_alpha=out[3]        
-      exit
+      out:=load_composites(SD,"Z3",b,1.,lev,lat,lon)
+      Z3_mean_low=out[0]
+      Z3_mean_high=out[1]
+      Z3_diff=out[2]
+      Z3_alpha=out[3]
+   
+      out:=load_composites(SD,"PRECIP",b, (year2sec/1000.),lev,lat,lon);mm/s -> m/yr 
+      PRECIP_mean_low=out[0]
+      PRECIP_mean_high=out[1]
+      PRECIP_diff=out[2]
+      PRECIP_alpha=out[3]      
 
-      ;Need to calculate Z500 and vertical integral of UQ/VQ.	       
+      out:=load_composites(SD,"PS",b, 1,lev,lat,lon);mm/s -> m/yr 
+      PS_mean_low=out[0]
+      PS_mean_high=out[1]
+      PS_diff=out[2]
+      PS_alpha=out[3]  
+      PS_mean_mean=(PS_mean_low+PS_mean_high)/2.
+        
+      ;Calculate z500
+      Z500_diff =rm_single_dims (vinth2p (Z3_diff,hyam,hybm,(/500.0/),PS_mean_mean,1,P0/100.,1,True) )
+      Z500_alpha=rm_single_dims (vinth2p (Z3_alpha,hyam,hybm,(/500.0/),PS_mean_mean,1,P0/100.,1,True))     
       
       rc=regline_stats(ndtooned(Z500_diff),ndtooned(SLP_diff))
       print("***Relationship between Z500 and SLP variability for basin "+b+"***")
-          print("regression coefficient: "+rc@r)
-
-      ;Get monthly precipitation climatologies
-      PRECIPm_high=(fhigh->monthly_climo_PRECIP) * year2sec / 1000.    ;mm/s -> m/yr
-      PRECIPm_low =(flow->monthly_climo_PRECIP)  * year2sec / 1000.    ;mm/s -> m/yr   
+      print("  regression coefficient: "+rc@r)
 
       BasinMask=new(dimsizes(AISMask),"integer")      
       BasinMask=where(AISMask.eq.b,1,0);set basinmask to one where basin equals 1
-      BasinMask=add_lat_lon_arrays(BasinMask,lat,lon)
+      BasinMask=add_lev_lat_lon_arrays(BasinMask,lev,lat,lon)
       out:=make_correlation_mask(AISMask,nAISMask,Xcor_basin_by_basin_CESM,time,bm1)
-      CorrMask_CESM=add_lat_lon_arrays(out[0],lat,lon)
-      RtestMask_CESM=add_lat_lon_arrays(out[1],lat,lon)
+      CorrMask_CESM=add_lev_lat_lon_arrays(out[0],lev,lat,lon)
+      RtestMask_CESM=add_lev_lat_lon_arrays(out[1],lev,lat,lon)
       out:=make_correlation_mask(AISMask_RACMO,nAISMask,Xcor_basin_by_basin_RACMO,time_RACMO,bm1)
       CorrMask_RACMO=out[0]
       RtestMask_RACMO=out[1]
       out:=make_correlation_mask(AISMask,nAISMask,Xcor_basin_by_basin_PAGES,time_PAGES,bm1)
-      CorrMask_PAGES=add_lat_lon_arrays(out[0],lat,lon)
-      RtestMask_PAGES=add_lat_lon_arrays(out[1],lat,lon)    
+      CorrMask_PAGES=add_lev_lat_lon_arrays(out[0],lev,lat,lon)
+      RtestMask_PAGES=add_lev_lat_lon_arrays(out[1],lev,lat,lon)    
       
        ;;;;Various basin-specific plots!;;;;
 
       if(plot_dMoisture_dZ500_transport.eq.1) then
          wks = gsn_open_wks (wks_type,str_concat((/"figs/dMoisture_transport_dZ500",sprinti("%0.2i", b)/)))
-	 moisture_plot=plot_vector_scalar_field(UQ_VERT_INTEGRAL_diff,VQ_VERT_INTEGRAL_diff,Z500_diff,wks,0,-30)
-	 sigfield=where(UQ_VERT_INTEGRAL_alpha.gt.VQ_VERT_INTEGRAL_alpha ,\
-	                UQ_VERT_INTEGRAL_alpha,VQ_VERT_INTEGRAL_alpha)
-	 sigfield=add_lat_lon_arrays(Z500_alpha,lat,lon)
-	 significance_plot=plot_significance(sigfield,wks)
-	 correlation_plot=plot_basin_correlation(CorrMask_CESM,wks,1,-30)
-	 basin_plot=plot_basin(BasinMask,wks)
-	 overlay (correlation_plot,basin_plot)
+	 moisture_plot=plot_vector_scalar_field(UQ_VERT_INTEGRAL_diff,VQ_VERT_INTEGRAL_diff,Z500_diff,wks,0,-45)
+	 ;sigfield=where(UQ_VERT_INTEGRAL_alpha.gt.VQ_VERT_INTEGRAL_alpha ,\
+	 ;               UQ_VERT_INTEGRAL_alpha,VQ_VERT_INTEGRAL_alpha)
+	 ;sigfield=add_lev_lat_lon_arrays(Z500_alpha,lev,lat,lon)
+	 ;significance_plot=plot_significance(Z500_alpha,wks)
+	 correlation_plot=plot_basin_correlation(CorrMask_CESM,wks,1,-45)
+	 ;basin_plot=plot_basin(BasinMask,wks)
+	 ;overlay (correlation_plot,basin_plot)
 	 overlay(correlation_plot,moisture_plot)
-	 overlay(correlation_plot,significance_plot)	 
+	 ;overlay(correlation_plot,significance_plot)	 
 	 draw(correlation_plot)
 	 frame(wks)	    
       end if
@@ -389,7 +426,7 @@ begin
       
       if(plot_dSIC_plus_dZ500.eq.1) then    
          wks = gsn_open_wks (wks_type,str_concat((/"figs/dSIC_plus_dZ500",sprinti("%0.2i", b)/)))
-         dSIC_plot=plot_SIC(SIC_diff,wks)
+         dSIC_plot=plot_SIC(SIC_diff,wks,-45)
 	 correlation_plot=plot_basin_correlation(CorrMask_CESM,wks,0,0)
 	 basin_plot=plot_basin(BasinMask,wks)
 	 dZ500_plot=plot_SLP(Z500_diff,wks)
@@ -402,7 +439,7 @@ begin
       
       if(plot_dSIC.eq.1) then    
          wks = gsn_open_wks (wks_type,str_concat((/"figs/dSIC",sprinti("%0.2i", b)/)))
-         dSIC_plot=plot_SIC(SIC_diff,wks)
+         dSIC_plot=plot_SIC(SIC_diff,wks,-45)
 	 correlation_plot=plot_basin_correlation(CorrMask_CESM,wks,0,0)
 	 basin_plot=plot_basin(BasinMask,wks)
          overlay(dSIC_plot,correlation_plot)
@@ -413,7 +450,7 @@ begin
       
       if(plot_dMoisture_plus_SIC.eq.1) then
          wks = gsn_open_wks (wks_type,str_concat((/"figs/dMoisture_transport_plus_SIC",sprinti("%0.2i", b)/)))
-         dSIC_plot=plot_SIC(SIC_diff,wks)
+         dSIC_plot=plot_SIC(SIC_diff,wks,-45)
          moisture_plot=plot_vector_field(UQ_VERT_INTEGRAL_diff,VQ_VERT_INTEGRAL_diff,wks)
 	 correlation_plot=plot_basin_correlation(CorrMask_CESM,wks,0,0)
 	 basin_plot=plot_basin(BasinMask,wks)

@@ -19,7 +19,7 @@ function get_default_res()
      default_res@cnLevelSelectionMode  = "ManualLevels"     ; set manual contour levels
      default_res@mpOutlineOn          = False
      default_res@gsnAddCyclic          = True       
-     default_res@cnInfoLabelOn         = False       ; turn off info label
+     default_res@cnInfoLabelOn         = False       ; turn off info labeld
      tt=5
      default_res@tiMainFontThicknessF = tt
      default_res@tiXAxisFontThicknessF = tt
@@ -57,14 +57,28 @@ function get_LandArea()
       return LandArea
    end
 ;;;
-function add_lat_lon_arrays(field,lat,lon)
+function add_lev_lat_lon_arrays(field,lev,lat,lon)
 begin
-   field!0="lat"
-   field!1="lon"
-   field&lat=lat
-   field&lon=lon
-   field&lat@units="degrees_north"
-   field&lon@units="degrees_east" 
+   rank=dimsizes(dimsizes(field))
+   ;See if field is 2d or 3d.  If 3d, assume first dimension is vertical level.
+   if (rank.eq.2) then
+      field!0="lat"
+      field!1="lon"
+      field&lat=lat
+      field&lon=lon
+      field&lat@units="degrees_north"
+      field&lon@units="degrees_east" 
+   else if (rank.eq.3) then
+      field!0="lev"   
+      field!1="lat"
+      field!2="lon"
+      field&lev=lev      
+      field&lat=lat
+      field&lon=lon
+      field&lat@units="degrees_north"
+      field&lon@units="degrees_east" 
+   end if
+   end if
    return field
 end
 ;;;
@@ -368,25 +382,32 @@ function make_correlation_mask(AISMask,nAISMask,Xcor,time,bm1)
       return([/CorrMask,RtestMask/])
    end
    
-   function load_composites(SD,Vname,b)
+   function load_composites(SD,Vname,b,ScaleFactor,lev,lat,lon)
    begin
+   
       in:=addfile(str_concat((/SD,"compositing_work/output/low/",sprinti("%0.2i",b),"/",Vname,".nc"/)),"r")
-      Var_mean_low=in->CompAnnClimo
+      Var_mean_low=in->CompAnnClimo  *ScaleFactor
       in:=addfile(str_concat((/SD,"compositing_work/output/high/",sprinti("%0.2i",b),"/",Vname,".nc"/)),"r")
-      Var_mean_high=in->CompAnnClimo
+      Var_mean_high=in->CompAnnClimo *ScaleFactor
       in:=addfile(str_concat((/SD,"compositing_work/output/low/",sprinti("%0.2i",b),"/",Vname,".nc"/)),"r")
-      Var_var_low=in->CompAnnVar
+      Var_var_low=in->CompAnnVar     *ScaleFactor
       in:=addfile(str_concat((/SD,"compositing_work/output/high/",sprinti("%0.2i",b),"/",Vname,".nc"/)),"r")
-      Var_var_high=in->CompAnnVar
+      Var_var_high=in->CompAnnVar    *ScaleFactor
+
+      Var_mean_low :=rm_single_dims(Var_mean_low)
+      Var_mean_high:=rm_single_dims(Var_mean_high)
+      Var_var_low  :=rm_single_dims(Var_var_low)
+      Var_var_high :=rm_single_dims(Var_var_high)
+      
       nSamples_low = in->nSamples
       nSamples_high = in->nSamples
-      lat=in->lat
-      lon=in->lon
       Var_var_high=in->CompAnnVar
       Var_diff=Var_mean_high-Var_mean_low
-      Var_diff=add_lat_lon_arrays(Var_diff,lat,lon)
+      Var_mean_low =add_lev_lat_lon_arrays(Var_mean_low,lev,lat,lon)
+      Var_mean_high=add_lev_lat_lon_arrays(Var_mean_high,lev,lat,lon)
+      Var_diff=add_lev_lat_lon_arrays(Var_diff,lev,lat,lon)
       Var_alpha=ttest(Var_mean_low,Var_var_low,nSamples_low,Var_mean_high,Var_var_high,nSamples_high, False, False)
-      Var_alpha=add_lat_lon_arrays(Var_alpha,lat,lon)
+      Var_alpha=add_lev_lat_lon_arrays(Var_alpha,lev,lat,lon)
       return([/Var_mean_low,Var_mean_high,Var_diff,Var_alpha/])
    end
       
